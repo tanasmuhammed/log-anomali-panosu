@@ -1,59 +1,100 @@
-<!DOCTYPE html>
-<html lang="tr">
-<head>
-  <meta charset="UTF-8">
-  <title>Pano - Gözcü</title>
-  <style>
-    .onem { padding: 2px 8px; border-radius: 10px; color: #fff; font-weight: bold; font-size: 13px; }
-    .yuksek { background: #C8283D; }
-    .orta   { background: #B87700; }
-    .dusuk  { background: #1F7A6D; }
-  </style>
-</head>
-<body>
-  <h1>Pano</h1>
+{% extends "uygulama_duzen.html" %}
+{% block baslik %}Pano{% endblock %}
+{% block icerik %}
+  <div class="baslik">
+    {% if ozet.yuksek > 0 %}
+      <h1>{{ ozet.yuksek }} yüksek önemli uyarı inceleme bekliyor.</h1>
+    {% elif ozet.anomali > 0 %}
+      <h1 class="sakin">Yüksek önemli uyarı yok.</h1>
+    {% else %}
+      <h1 class="sakin">Şu an şüpheli bir durum yok.</h1>
+    {% endif %}
+    <p>Toplam <strong>{{ ozet.toplam_log }} giriş denemesi</strong> kayıtlı, <strong>{{ ozet.basarisiz }}</strong> tanesi başarısız. Kurallarınız <strong>{{ ozet.anomali }} anomali</strong> tespit etti.</p>
+  </div>
 
-  {% for mesaj in get_flashed_messages() %}
-    <p><strong>{{ mesaj }}</strong></p>
-  {% endfor %}
+  <div class="kartlar">
+    <div class="kart"><div class="etiket">Giriş denemesi</div><div class="sayi">{{ ozet.toplam_log }}</div></div>
+    <div class="kart"><div class="etiket">Başarısız giriş</div><div class="sayi">{{ ozet.basarisiz }}</div></div>
+    <div class="kart uyari"><div class="etiket">Anomali</div><div class="sayi">{{ ozet.anomali }}</div></div>
+    <div class="kart alarm"><div class="etiket">Yüksek önemli</div><div class="sayi">{{ ozet.yuksek }}</div></div>
+  </div>
 
-  <p>Hoş geldin, {{ session.kullanici_adi }} ({{ session.rol }})</p>
+  <section aria-labelledby="uyarilar-b">
+    <div class="bolum-ust">
+      <div>
+        <h2 class="bolum" id="uyarilar-b">Uyarılar</h2>
+        <p class="aciklama-metni">Kurallarınıza takılan olaylar, önce en önemlisi.</p>
+      </div>
+      <form method="post" action="{{ url_for('tarama') }}" style="margin-bottom:16px">
+        <button class="btn ikincil" type="submit">Kuralları şimdi çalıştır</button>
+      </form>
+    </div>
+    {% if anomaliler %}
+      <div class="tablo-kutu">
+        <table>
+          <tr><th>Önem</th><th>Olay zamanı</th><th>IP adresi</th><th>Kural</th><th>Açıklama</th></tr>
+          {% for a in anomaliler %}
+            <tr class="{{ a.onem }}">
+              <td><span class="onem {{ a.onem }}">{{ {"yuksek": "Yüksek", "orta": "Orta", "dusuk": "Düşük"}[a.onem] }}</span></td>
+              <td>{{ a.olay_zamani.strftime("%d.%m.%Y %H:%M") if a.olay_zamani else "-" }}</td>
+              <td>{{ a.ip_adresi }}</td>
+              <td>{{ a.kural }}</td>
+              <td>{{ a.aciklama or "" }}</td>
+            </tr>
+          {% endfor %}
+        </table>
+      </div>
+    {% else %}
+      <div class="bos">Henüz anomali yok. Bir log dosyası yüklediğinizde kurallar otomatik çalışır.</div>
+    {% endif %}
+  </section>
 
-  <h2>Uyarılar</h2>
-  <form method="post" action="/tarama">
-    <button type="submit">Kuralları şimdi çalıştır</button>
-  </form>
-  {% if anomaliler %}
-    <table border="1" cellpadding="4">
-      <tr><th>Önem</th><th>Olay zamanı</th><th>IP</th><th>Kural</th><th>Açıklama</th></tr>
-      {% for a in anomaliler %}
-        <tr>
-          <td><span class="onem {{ a.onem }}">{{ a.onem }}</span></td>
-          <td>{{ a.olay_zamani }}</td>
-          <td>{{ a.ip_adresi }}</td>
-          <td>{{ a.kural }}</td>
-          <td>{{ a.aciklama }}</td>
-        </tr>
-      {% endfor %}
-    </table>
-  {% else %}
-    <p>Henüz anomali yok.</p>
-  {% endif %}
+  <section aria-labelledby="saat-b">
+    <h2 class="bolum" id="saat-b">Saatlere göre girişler</h2>
+    <p class="aciklama-metni">Tüm kayıtların günün saatlerine dağılımı. Başarılılar çizginin üstünde, başarısızlar altında ve kendi ölçeğinde. Taralı alan mesai dışı.</p>
+    {% if ozet.toplam_log %}
+      <div class="grafik-kutu">
+        <div class="grafik" role="img" aria-label="Saatlere göre başarılı ve başarısız giriş sayıları">
+          {% for s in saatlik %}
+            <div class="saat {% if s.saat < 8 or s.saat >= 18 %}mesai-disi{% endif %}" title="{{ '%02d'|format(s.saat) }}:00 · {{ s.basarili }} başarılı, {{ s.basarisiz }} başarısız">
+              <div class="ust"><div class="bar b" style="height: {{ (s.basarili / max_basarili * 100) if max_basarili else 0 }}%"></div></div>
+              <div class="alt-yari"><div class="bar k" style="height: {{ (s.basarisiz / max_basarisiz * 100) if max_basarisiz else 0 }}%"></div></div>
+            </div>
+          {% endfor %}
+        </div>
+        <div class="eksen">{% for s in saatlik %}<span>{{ '%02d'|format(s.saat) }}</span>{% endfor %}</div>
+        <div class="lejant">
+          <span><i style="background:var(--ok)"></i>Başarılı giriş</span>
+          <span><i style="background:var(--alarm)"></i>Başarısız giriş</span>
+        </div>
+      </div>
+    {% else %}
+      <div class="bos">Henüz kayıt yok. <a href="{{ url_for('log_yukle') }}">Log dosyası yükleyin.</a></div>
+    {% endif %}
+  </section>
 
-  <h2>Son giriş kayıtları</h2>
-  {% if loglar %}
-    <table border="1" cellpadding="4">
-      <tr><th>Zaman</th><th>IP</th><th>Kullanıcı</th><th>Kaynak</th><th>Durum</th></tr>
-      {% for l in loglar %}
-        <tr><td>{{ l.zaman }}</td><td>{{ l.ip_adresi }}</td><td>{{ l.kullanici_adi }}</td><td>{{ l.kaynak }}</td><td>{{ l.durum }}</td></tr>
-      {% endfor %}
-    </table>
-  {% else %}
-    <p>Bu şirkete ait log kaydı yok.</p>
-  {% endif %}
+  <section aria-labelledby="son-b">
+    <h2 class="bolum" id="son-b">Son giriş kayıtları</h2>
+    <p class="aciklama-metni">En yeni kayıt en üstte.</p>
+    {% if loglar %}
+      <div class="tablo-kutu">
+        <table>
+          <tr><th>Zaman</th><th>IP adresi</th><th>Kullanıcı</th><th>Kaynak</th><th>Sonuç</th></tr>
+          {% for l in loglar %}
+            <tr>
+              <td>{{ l.zaman.strftime("%d.%m.%Y %H:%M:%S") }}</td>
+              <td>{{ l.ip_adresi }}</td>
+              <td>{{ l.kullanici_adi }}</td>
+              <td>{{ l.kaynak }}</td>
+              <td><span class="durum {{ l.durum }}">{{ "Başarılı" if l.durum == "basarili" else "Başarısız" }}</span></td>
+            </tr>
+          {% endfor %}
+        </table>
+      </div>
+    {% else %}
+      <div class="bos">Bu şirkete ait log kaydı yok.</div>
+    {% endif %}
+  </section>
 
-  {% if session.rol == "yonetici" %}<p><a href="/yonetim">Kural yönetimi</a></p>{% endif %}
-  <p><a href="/log-yukle">Log dosyası yükle</a></p>
-  <p><a href="/cikis">Çıkış yap</a></p>
-</body>
-</html>
+  <p class="ayrac">Gösterilen tüm veriler sentetik test verisidir; gerçek kişi veya kuruma ait değildir.</p>
+{% endblock %}

@@ -1,0 +1,27 @@
+{% extends "base.html" %}
+{% block govde %}
+<div class="uygulama">
+  <aside class="menu">
+    <div>
+      <a class="wordmark" href="{{ url_for('pano') }}">Gözcü</a>
+      <div class="alt-baslik">Log anomali izleme</div>
+    </div>
+    <nav aria-label="Ana menü">
+      <a href="{{ url_for('pano') }}" {% if request.endpoint == 'pano' %}class="aktif" aria-current="page"{% endif %}>Pano</a>
+      <a href="{{ url_for('log_yukle') }}" {% if request.endpoint == 'log_yukle' %}class="aktif" aria-current="page"{% endif %}>Log yükle</a>
+      {% if session.rol == "yonetici" %}
+      <a href="{{ url_for('yonetim') }}" {% if request.endpoint == 'yonetim' %}class="aktif" aria-current="page"{% endif %}>Kurallar</a>
+      {% endif %}
+    </nav>
+    <div class="kim">
+      <b>{{ session.sirket_adi or "Şirket" }}</b>
+      <span>{{ session.kullanici_adi }} · {{ session.rol }}</span>
+      <a class="btn ikincil" href="{{ url_for('cikis') }}">Çıkış yap</a>
+    </div>
+  </aside>
+  <main>
+    {% include "_mesajlar.html" %}
+    {% block icerik %}{% endblock %}
+  </main>
+</div>
+{% endblock %}

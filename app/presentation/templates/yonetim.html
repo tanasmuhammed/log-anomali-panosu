@@ -1,13 +1,25 @@
-<!DOCTYPE html>
-<html lang="tr">
-<head><meta charset="UTF-8"><title>Yönetim - Gözcü</title></head>
-<body>
-  <h1>Kural yönetimi (sadece yönetici)</h1>
-  {% if kurallar %}
-    <ul>
-    {% for k in kurallar %}<li>{{ k.ad }}: eşik {{ k.esik }}, pencere {{ k.pencere_dk }} dk</li>{% endfor %}
-    </ul>
-  {% else %}<p>Bu şirkete ait kural yok.</p>{% endif %}
-  <p><a href="/pano">Panoya dön</a></p>
-</body>
-</html>
+{% extends "uygulama_duzen.html" %}
+{% block baslik %}Kurallar{% endblock %}
+{% block icerik %}
+  <div class="baslik">
+    <h1>Kural yönetimi</h1>
+    <p>Şirketinize özel kurallar. Bu sayfayı yalnızca yönetici rolü görebilir. Kural düzenleme Hafta 11'de eklenecek.</p>
+  </div>
+  <section>
+    {% if kurallar %}
+      <div class="kurallar">
+        {% for k in kurallar %}
+          <div class="kural">
+            <span class="aktiflik {% if not k.aktif %}pasif{% endif %}">{{ "AKTİF" if k.aktif else "PASİF" }}</span>
+            <h3>{{ k.ad }}</h3>
+            <div class="deger">
+              {% if k.esik %}{{ k.pencere_dk }} dakika içinde en az {{ k.esik }} olay{% else %}Mesai dışı (08:00-18:00 dışı) başarılı girişler{% endif %}
+            </div>
+          </div>
+        {% endfor %}
+      </div>
+    {% else %}
+      <div class="bos">Bu şirkete ait kural yok.</div>
+    {% endif %}
+  </section>
+{% endblock %}

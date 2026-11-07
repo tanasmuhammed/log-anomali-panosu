@@ -1,32 +1,36 @@
-<!DOCTYPE html>
-<html lang="tr">
-<head><meta charset="UTF-8"><title>Log Yükle - Gözcü</title></head>
-<body>
-  <h1>Log dosyası yükle</h1>
+{% extends "uygulama_duzen.html" %}
+{% block baslik %}Log yükle{% endblock %}
+{% block icerik %}
+  <div class="baslik">
+    <h1>Log dosyası yükleyin.</h1>
+    <p>Her satır şu biçimde olmalı: <code>2026-10-23 09:42:10 auth basarisiz user=admin ip=203.0.113.45</code>. Bozuk satırlar atlanır, aynı kayıt iki kez eklenmez, kurallar yüklemeden sonra otomatik çalışır.</p>
+  </div>
 
-  {% for mesaj in get_flashed_messages() %}
-    <p><strong>{{ mesaj }}</strong></p>
-  {% endfor %}
-
-  <form method="post" enctype="multipart/form-data">
-    <p><label>Kaynak<br>
-      <select name="kaynak_id">
+  <section>
+    <form class="form" method="post" enctype="multipart/form-data" style="max-width:460px">
+      <label for="kaynak_id">Kaynak</label>
+      <select id="kaynak_id" name="kaynak_id">
         <option value="">(seçin)</option>
         {% for k in kaynaklar %}<option value="{{ k.id }}">{{ k.ad }}</option>{% endfor %}
-      </select></label></p>
-    <p><label>veya yeni kaynak adı<br><input name="yeni_kaynak" placeholder="Örn: VPN"></label></p>
-    <p><label>Log dosyası (.log veya .txt)<br><input type="file" name="dosya" accept=".log,.txt" required></label></p>
-    <button type="submit">Yükle</button>
-  </form>
+      </select>
+      <label for="yeni_kaynak">veya yeni kaynak adı</label>
+      <input id="yeni_kaynak" name="yeni_kaynak" placeholder="Örn: VPN">
+      <label for="dosya">Log dosyası (.log veya .txt, en fazla 2 MB)</label>
+      <input id="dosya" type="file" name="dosya" accept=".log,.txt" required>
+      <button class="btn tam" type="submit">Yükle</button>
+    </form>
+  </section>
 
   {% if hatalar %}
-    <h2>Atlanan satırlar</h2>
-    <table border="1" cellpadding="4">
-      <tr><th>Satır</th><th>İçerik</th><th>Hata</th></tr>
-      {% for h in hatalar %}<tr><td>{{ h.satir_no }}</td><td>{{ h.satir }}</td><td>{{ h.hata }}</td></tr>{% endfor %}
-    </table>
+  <section aria-labelledby="atlanan-b">
+    <h2 class="bolum" id="atlanan-b">Atlanan satırlar</h2>
+    <p class="aciklama-metni">Bu satırlar biçime uymadığı için kaydedilmedi; dosyanın geri kalanı işlendi.</p>
+    <div class="tablo-kutu">
+      <table>
+        <tr><th>Satır</th><th>İçerik</th><th>Hata</th></tr>
+        {% for h in hatalar %}<tr><td>{{ h.satir_no }}</td><td><code>{{ h.satir }}</code></td><td>{{ h.hata }}</td></tr>{% endfor %}
+      </table>
+    </div>
+  </section>
   {% endif %}
-
-  <p><a href="/pano">Panoya dön</a></p>
-</body>
-</html>
+{% endblock %}

@@ -1,0 +1,7 @@
+{% with mesajlar = get_flashed_messages() %}
+  {% if mesajlar %}
+    <ul class="mesajlar" role="status">
+      {% for m in mesajlar %}<li>{{ m }}</li>{% endfor %}
+    </ul>
+  {% endif %}
+{% endwith %}

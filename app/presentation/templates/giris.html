@@ -1,22 +1,13 @@
-<!DOCTYPE html>
-<html lang="tr">
-<head>
-  <meta charset="UTF-8">
-  <title>Giriş - Gözcü</title>
-</head>
-<body>
-  <h1>Giriş</h1>
-
-  {% for mesaj in get_flashed_messages() %}
-    <p><strong>{{ mesaj }}</strong></p>
-  {% endfor %}
-
+{% extends "tanitim_duzen.html" %}
+{% block baslik %}Giriş{% endblock %}
+{% block form %}
+  <h2>Şirket hesabınızla giriş yapın</h2>
   <form method="post">
-    <p><label>Kullanıcı adı<br><input name="kullanici_adi" required></label></p>
-    <p><label>Parola<br><input type="password" name="parola" required></label></p>
-    <button type="submit">Giriş yap</button>
+    <label for="kullanici_adi">Kullanıcı adı</label>
+    <input id="kullanici_adi" name="kullanici_adi" autocomplete="username" required autofocus>
+    <label for="parola">Parola</label>
+    <input id="parola" type="password" name="parola" autocomplete="current-password" required>
+    <button class="btn tam" type="submit">Giriş yap</button>
   </form>
-
-  <p><a href="/kayit">Şirket kaydı</a></p>
-</body>
-</html>
+  <p class="alt">Hesabınız yok mu? <a href="{{ url_for('kayit') }}">Şirket kaydı</a></p>
+{% endblock %}

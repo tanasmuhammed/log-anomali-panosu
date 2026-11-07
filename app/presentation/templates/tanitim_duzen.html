@@ -1,0 +1,35 @@
+{% extends "base.html" %}
+{% block govde %}
+<div class="ikili">
+  <div class="tanitim">
+    <a class="wordmark" href="{{ url_for('ana_sayfa') }}">Gözcü</a>
+    <div>
+      <h1>Şüpheli girişi büyümeden yakalayın.</h1>
+      <p>Sunucu ve uygulama günlüklerinizdeki hatalı, alışılmadık ve zamansız girişleri tek ekranda izleyin. Her şirket yalnızca kendi verisini görür.</p>
+    </div>
+    <svg class="serit" viewBox="0 0 520 90" aria-hidden="true">
+      <g fill="#7FA9B3">
+        <rect x="6" y="38" width="12" height="12"/><rect x="28" y="30" width="12" height="20"/><rect x="50" y="20" width="12" height="30"/>
+        <rect x="72" y="8" width="12" height="42"/><rect x="94" y="14" width="12" height="36"/><rect x="116" y="24" width="12" height="26"/>
+        <rect x="138" y="12" width="12" height="38"/><rect x="160" y="6" width="12" height="44"/><rect x="182" y="16" width="12" height="34"/>
+        <rect x="204" y="26" width="12" height="24"/><rect x="226" y="36" width="12" height="14"/><rect x="248" y="40" width="12" height="10"/>
+        <rect x="270" y="30" width="12" height="20"/><rect x="292" y="18" width="12" height="32"/><rect x="314" y="10" width="12" height="40"/>
+        <rect x="336" y="16" width="12" height="34"/><rect x="358" y="28" width="12" height="22"/><rect x="380" y="34" width="12" height="16"/>
+        <rect x="402" y="40" width="12" height="10"/><rect x="424" y="44" width="12" height="6"/><rect x="446" y="42" width="12" height="8"/>
+        <rect x="468" y="46" width="12" height="4"/><rect x="490" y="46" width="12" height="4"/>
+      </g>
+      <g fill="#C8283D">
+        <rect x="50" y="52" width="12" height="8"/><rect x="72" y="52" width="12" height="34"/><rect x="204" y="52" width="12" height="6"/>
+        <rect x="314" y="52" width="12" height="14"/><rect x="424" y="52" width="12" height="4"/>
+      </g>
+      <line x1="0" y1="51" x2="520" y2="51" stroke="#12303F" stroke-width="1.5"/>
+    </svg>
+  </div>
+  <div class="form-alani">
+    <div class="form">
+      {% include "_mesajlar.html" %}
+      {% block form %}{% endblock %}
+    </div>
+  </div>
+</div>
+{% endblock %}

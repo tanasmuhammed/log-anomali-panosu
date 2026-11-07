@@ -1,23 +1,16 @@
-<!DOCTYPE html>
-<html lang="tr">
-<head>
-  <meta charset="UTF-8">
-  <title>Kayıt - Gözcü</title>
-</head>
-<body>
-  <h1>Şirket Kaydı</h1>
-
-  {% for mesaj in get_flashed_messages() %}
-    <p><strong>{{ mesaj }}</strong></p>
-  {% endfor %}
-
+{% extends "tanitim_duzen.html" %}
+{% block baslik %}Şirket kaydı{% endblock %}
+{% block form %}
+  <h2>Şirketinizi kaydedin</h2>
   <form method="post">
-    <p><label>Şirket adı<br><input name="sirket" required></label></p>
-    <p><label>Yönetici kullanıcı adı<br><input name="kullanici_adi" required></label></p>
-    <p><label>Parola (en az 8 karakter)<br><input type="password" name="parola" required></label></p>
-    <button type="submit">Kayıt ol</button>
+    <label for="sirket">Şirket adı</label>
+    <input id="sirket" name="sirket" required autofocus>
+    <label for="kullanici_adi">Yönetici kullanıcı adı</label>
+    <input id="kullanici_adi" name="kullanici_adi" autocomplete="username" required>
+    <label for="parola">Parola</label>
+    <input id="parola" type="password" name="parola" autocomplete="new-password" minlength="8" required>
+    <span class="ipucu">En az 8 karakter. Parolanız düz metin olarak saklanmaz.</span>
+    <button class="btn tam" type="submit">Kayıt ol</button>
   </form>
-
-  <p><a href="/">Ana sayfa</a></p>
-</body>
-</html>
+  <p class="alt">Zaten hesabınız var mı? <a href="{{ url_for('giris') }}">Giriş yap</a></p>
+{% endblock %}

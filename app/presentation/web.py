@@ -17,6 +17,8 @@ app.config["MAX_CONTENT_LENGTH"] = 2 * 1024 * 1024  # en fazla 2 MB dosya
 
 @app.route("/")
 def ana_sayfa():
+    if "kullanici_id" in session:
+        return redirect(url_for("pano"))
     return render_template("ana.html")
 
 
@@ -34,8 +36,8 @@ def kayit():
         else:
             try:
                 crud.sirket_ve_yonetici_ekle(sirket, kadi, parola_hashle(parola))
-                flash("Kayıt tamamlandı.")
-                return redirect(url_for("ana_sayfa"))
+                flash("Kayıt tamamlandı. Şimdi giriş yapabilirsiniz.")
+                return redirect(url_for("giris"))
             except ValueError as hata:
                 flash(str(hata))
     return render_template("kayit.html")
@@ -54,6 +56,7 @@ def giris():
             session["sirket_id"] = kullanici["sirket_id"]
             session["kullanici_adi"] = kullanici["kullanici_adi"]
             session["rol"] = kullanici["rol"]
+            session["sirket_adi"] = kullanici["sirket_adi"]
             flash("Giriş başarılı.")
             return redirect(url_for("pano"))
         else:
@@ -70,7 +73,13 @@ def pano():
     sirket_id = session["sirket_id"]
     loglar = crud.son_loglar(sirket_id, adet=10)
     anomaliler = crud.anomalileri_getir(sirket_id, adet=20)
-    return render_template("pano.html", loglar=loglar, anomaliler=anomaliler)
+    ozet = crud.pano_ozeti(sirket_id)
+    saatlik = crud.saatlik_dagilim(sirket_id)
+    return render_template(
+        "pano.html", loglar=loglar, anomaliler=anomaliler, ozet=ozet, saatlik=saatlik,
+        max_basarili=max(s["basarili"] for s in saatlik),
+        max_basarisiz=max(s["basarisiz"] for s in saatlik),
+    )
 
 
 @app.route("/tarama", methods=["POST"])
@@ -145,4 +154,7 @@ def cikis():
 
 
 if __name__ == "__main__":
-    app.run(debug=True)
+    # GÜVENLİK: debug modu sadece FLASK_DEBUG=1 ise açılır. Uygulama internete
+    # açıldığında (canlı link) debug kapalı olmalı, yoksa hata sayfasından
+    # sunucuda kod çalıştırılabilir.
+    app.run(debug=os.getenv("FLASK_DEBUG") == "1")

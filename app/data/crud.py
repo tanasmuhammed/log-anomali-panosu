@@ -201,9 +201,11 @@ def kullanici_getir(kullanici_adi):
     bilmiyoruz, onu bu sorgu bulacak. kullanici_adi tüm sistemde benzersizdir.
     """
     sql = """
-        SELECT id, sirket_id, kullanici_adi, parola_hash, rol
-        FROM kullanici
-        WHERE kullanici_adi = ?
+        SELECT k.id, k.sirket_id, k.kullanici_adi, k.parola_hash, k.rol,
+               s.ad AS sirket_adi
+        FROM kullanici k
+        JOIN sirket s ON s.id = k.sirket_id
+        WHERE k.kullanici_adi = ?
     """
     with _oturum() as cur:
         cur.execute(sql, kullanici_adi)
@@ -335,3 +337,35 @@ def anomalileri_getir(sirket_id, adet=20):
     with _oturum() as cur:
         cur.execute(sql, adet, sirket_id)
         return _sozluk_listesi(cur)
+
+# ====================== PANO ======================
+
+def pano_ozeti(sirket_id):
+    """Panodaki sayı kartları için şirketin özet sayılarını döndürür."""
+    sql = """
+        SELECT
+            (SELECT COUNT(*) FROM log_kaydi WHERE sirket_id = ?)                          AS toplam_log,
+            (SELECT COUNT(*) FROM log_kaydi WHERE sirket_id = ? AND durum = 'basarisiz')  AS basarisiz,
+            (SELECT COUNT(*) FROM anomali   WHERE sirket_id = ?)                          AS anomali,
+            (SELECT COUNT(*) FROM anomali   WHERE sirket_id = ? AND onem = 'yuksek')      AS yuksek
+    """
+    with _oturum() as cur:
+        cur.execute(sql, sirket_id, sirket_id, sirket_id, sirket_id)
+        return _sozluk_listesi(cur)[0]
+
+
+def saatlik_dagilim(sirket_id):
+    """Girişlerin günün saatlerine (0-23) göre başarılı/başarısız dağılımı.
+    Kaydı olmayan saatler 0 ile doldurulur, liste her zaman 24 elemanlıdır."""
+    sql = """
+        SELECT DATEPART(HOUR, zaman) AS saat,
+               SUM(CASE WHEN durum = 'basarili'  THEN 1 ELSE 0 END) AS basarili,
+               SUM(CASE WHEN durum = 'basarisiz' THEN 1 ELSE 0 END) AS basarisiz
+        FROM log_kaydi
+        WHERE sirket_id = ?
+        GROUP BY DATEPART(HOUR, zaman)
+    """
+    with _oturum() as cur:
+        cur.execute(sql, sirket_id)
+        satirlar = {s["saat"]: s for s in _sozluk_listesi(cur)}
+    return [satirlar.get(h, {"saat": h, "basarili": 0, "basarisiz": 0}) for h in range(24)]
