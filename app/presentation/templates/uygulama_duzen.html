@@ -2,20 +2,20 @@
 {% block govde %}
 <div class="uygulama">
   <aside class="menu">
-    <div>
-      <a class="wordmark" href="{{ url_for('pano') }}">Gözcü</a>
-      <div class="alt-baslik">Log anomali izleme</div>
-    </div>
+    <a class="marka" href="{{ url_for('pano') }}">{% include "_goz.html" %} Gözcü</a>
     <nav aria-label="Ana menü">
-      <a href="{{ url_for('pano') }}" {% if request.endpoint == 'pano' %}class="aktif" aria-current="page"{% endif %}>Pano</a>
-      <a href="{{ url_for('log_yukle') }}" {% if request.endpoint == 'log_yukle' %}class="aktif" aria-current="page"{% endif %}>Log yükle</a>
+      <a href="{{ url_for('pano') }}" {% if request.endpoint == 'pano' %}class="aktif" aria-current="page"{% endif %}>
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="M3 13h8V3H3zM13 21h8V11h-8zM3 21h8v-6H3zM13 3v6h8V3z"/></svg><span>Pano</span></a>
+      <a href="{{ url_for('log_yukle') }}" {% if request.endpoint == 'log_yukle' %}class="aktif" aria-current="page"{% endif %}>
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="M12 15V3m0 0-4 4m4-4 4 4M4 15v4a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-4"/></svg><span>Log yükle</span></a>
       {% if session.rol == "yonetici" %}
-      <a href="{{ url_for('yonetim') }}" {% if request.endpoint == 'yonetim' %}class="aktif" aria-current="page"{% endif %}>Kurallar</a>
+      <a href="{{ url_for('yonetim') }}" {% if request.endpoint == 'yonetim' %}class="aktif" aria-current="page"{% endif %}>
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="M4 6h10M4 12h6M4 18h12M18 4v4M14 10v4M20 16v4"/></svg><span>Kurallar</span></a>
       {% endif %}
     </nav>
     <div class="kim">
       <b>{{ session.sirket_adi or "Şirket" }}</b>
-      <span>{{ session.kullanici_adi }} · {{ session.rol }}</span>
+      <span>{{ session.kullanici_adi }}, {{ "yönetici" if session.rol == "yonetici" else "analist" }}</span>
       <a class="btn ikincil" href="{{ url_for('cikis') }}">Çıkış yap</a>
     </div>
   </aside>

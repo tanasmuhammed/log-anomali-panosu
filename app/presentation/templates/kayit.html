@@ -2,6 +2,7 @@
 {% block baslik %}Şirket kaydı{% endblock %}
 {% block form %}
   <h2>Şirketinizi kaydedin</h2>
+  <p class="giris-alt">Kayıtla birlikte dört hazır anomali kuralı eklenir.</p>
   <form method="post">
     <label for="sirket">Şirket adı</label>
     <input id="sirket" name="sirket" required autofocus>
@@ -12,5 +13,5 @@
     <span class="ipucu">En az 8 karakter. Parolanız düz metin olarak saklanmaz.</span>
     <button class="btn tam" type="submit">Kayıt ol</button>
   </form>
-  <p class="alt">Zaten hesabınız var mı? <a href="{{ url_for('giris') }}">Giriş yap</a></p>
+  <p class="alt">Zaten hesabınız var mı? <a href="{{ url_for('giris') }}">Giriş yapın</a></p>
 {% endblock %}

@@ -1,77 +1,106 @@
 {% extends "uygulama_duzen.html" %}
+{% set ONEM = {"yuksek": "Yüksek", "orta": "Orta", "dusuk": "Düşük"} %}
 {% block baslik %}Pano{% endblock %}
 {% block icerik %}
+  {% if ozet.yuksek > 0 %}{% set seviye, seviye_adi = "kritik", "KRİTİK" %}
+  {% elif ozet.anomali > 0 %}{% set seviye, seviye_adi = "dikkat", "DİKKAT" %}
+  {% else %}{% set seviye, seviye_adi = "sakin", "SAKİN" %}{% endif %}
+
+  <div class="serit">
+    <div class="seviye {{ seviye }}">
+      <span class="nokta {% if seviye == 'kritik' %}kirmizi{% endif %}"></span>
+      <span class="etiket">{{ seviye_adi }}</span>
+      <small>Tehdit seviyesi</small>
+    </div>
+    <form method="post" action="{{ url_for('tarama') }}">
+      <button class="btn ikincil" type="submit">Kuralları şimdi çalıştır</button>
+    </form>
+  </div>
+
   <div class="baslik">
     {% if ozet.yuksek > 0 %}
       <h1>{{ ozet.yuksek }} yüksek önemli uyarı inceleme bekliyor.</h1>
     {% elif ozet.anomali > 0 %}
-      <h1 class="sakin">Yüksek önemli uyarı yok.</h1>
+      <h1>Yüksek önemli uyarı yok, {{ ozet.anomali }} olay izlenmeli.</h1>
     {% else %}
-      <h1 class="sakin">Şu an şüpheli bir durum yok.</h1>
+      <h1>Şu an şüpheli bir durum yok.</h1>
     {% endif %}
     <p>Toplam <strong>{{ ozet.toplam_log }} giriş denemesi</strong> kayıtlı, <strong>{{ ozet.basarisiz }}</strong> tanesi başarısız. Kurallarınız <strong>{{ ozet.anomali }} anomali</strong> tespit etti.</p>
   </div>
 
-  <div class="kartlar">
-    <div class="kart"><div class="etiket">Giriş denemesi</div><div class="sayi">{{ ozet.toplam_log }}</div></div>
-    <div class="kart"><div class="etiket">Başarısız giriş</div><div class="sayi">{{ ozet.basarisiz }}</div></div>
-    <div class="kart uyari"><div class="etiket">Anomali</div><div class="sayi">{{ ozet.anomali }}</div></div>
-    <div class="kart alarm"><div class="etiket">Yüksek önemli</div><div class="sayi">{{ ozet.yuksek }}</div></div>
+  <div class="olcumler">
+    <div class="olcum"><div class="ad">Giriş denemesi</div><div class="sayi">{{ ozet.toplam_log }}</div></div>
+    <div class="olcum"><div class="ad">Başarısız giriş</div><div class="sayi">{{ ozet.basarisiz }}</div></div>
+    <div class="olcum kehribar"><div class="ad">Anomali</div><div class="sayi">{{ ozet.anomali }}</div></div>
+    <div class="olcum kirmizi"><div class="ad">Yüksek önemli</div><div class="sayi">{{ ozet.yuksek }}</div></div>
   </div>
 
   <section aria-labelledby="uyarilar-b">
-    <div class="bolum-ust">
-      <div>
-        <h2 class="bolum" id="uyarilar-b">Uyarılar</h2>
-        <p class="aciklama-metni">Kurallarınıza takılan olaylar, önce en önemlisi.</p>
-      </div>
-      <form method="post" action="{{ url_for('tarama') }}" style="margin-bottom:16px">
-        <button class="btn ikincil" type="submit">Kuralları şimdi çalıştır</button>
-      </form>
-    </div>
+    <h2 class="bolum" id="uyarilar-b">Uyarılar</h2>
+    <p class="aciklama-metni">Önce en önemlisi. Ayrıntı, konum ve özet için satırı açın.</p>
     {% if anomaliler %}
-      <div class="tablo-kutu">
-        <table>
-          <tr><th>Önem</th><th>Olay zamanı</th><th>IP adresi</th><th>Kural</th><th>Açıklama</th></tr>
-          {% for a in anomaliler %}
-            <tr class="{{ a.onem }}">
-              <td><span class="onem {{ a.onem }}">{{ {"yuksek": "Yüksek", "orta": "Orta", "dusuk": "Düşük"}[a.onem] }}</span></td>
-              <td>{{ a.olay_zamani.strftime("%d.%m.%Y %H:%M") if a.olay_zamani else "-" }}</td>
-              <td>{{ a.ip_adresi }}</td>
-              <td>{{ a.kural }}</td>
-              <td>{{ a.aciklama or "" }}</td>
-            </tr>
-          {% endfor %}
-        </table>
+      <div class="uyarilar">
+        {% for a in anomaliler %}
+          <details class="uyari {{ a.onem }}">
+            <summary>
+              <span class="rozet {{ a.onem }}">{{ ONEM[a.onem] }}</span>
+              <span class="kural-adi">{{ a.kural }}<small>{{ a.aciklama or "" }}</small></span>
+              <span class="ip"><span class="veri">{{ a.ip_adresi }}</span>
+                <small>{% if a.ayrilmis %}Test/ayrılmış adres{% elif a.ulke %}{{ a.sehir ~ ", " if a.sehir }}{{ a.ulke }}{% else %}Konum bilinmiyor{% endif %}</small></span>
+              <span class="zaman veri">{{ a.olay_zamani.strftime("%d.%m.%Y %H:%M") if a.olay_zamani else "-" }}</span>
+              <svg class="ok-isareti" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="m6 3 5 5-5 5"/></svg>
+            </summary>
+            <div class="detay">
+              {% if a.ai_ozeti %}
+                <div class="ozet">
+                  <div class="kaynak">
+                    {% if a.ai_ozet_kaynagi == "ai" %}
+                      <svg viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><path d="M8 0l1.8 5.2L15 7l-5.2 1.8L8 14l-1.8-5.2L1 7l5.2-1.8z"/></svg> Yapay zekâ özeti
+                    {% else %}
+                      Kural tabanlı özet
+                    {% endif %}
+                  </div>
+                  <p>{{ a.ai_ozeti }}</p>
+                </div>
+              {% endif %}
+              <p class="aciklama-metni" style="margin:0">
+                {{ a.kanit_sayisi }} log kaydı bu anomalinin kanıtı.
+                {% if a.kurulus %}Ağ: {{ a.kurulus }}.{% endif %}
+              </p>
+            </div>
+          </details>
+        {% endfor %}
       </div>
+      {% if ozetsiz %}
+        <form method="post" action="{{ url_for('ozetle') }}" style="margin-top:12px">
+          <button class="btn ikincil" type="submit">Özeti olmayan {{ ozetsiz }} uyarı için özet oluştur</button>
+        </form>
+      {% endif %}
     {% else %}
-      <div class="bos">Henüz anomali yok. Bir log dosyası yüklediğinizde kurallar otomatik çalışır.</div>
+      <div class="bos">Henüz anomali yok. <a href="{{ url_for('log_yukle') }}">Bir log dosyası yükleyin</a>; kurallar yüklemeden sonra otomatik çalışır.</div>
     {% endif %}
   </section>
 
-  <section aria-labelledby="saat-b">
-    <h2 class="bolum" id="saat-b">Saatlere göre girişler</h2>
-    <p class="aciklama-metni">Tüm kayıtların günün saatlerine dağılımı. Başarılılar çizginin üstünde, başarısızlar altında ve kendi ölçeğinde. Taralı alan mesai dışı.</p>
-    {% if ozet.toplam_log %}
-      <div class="grafik-kutu">
-        <div class="grafik" role="img" aria-label="Saatlere göre başarılı ve başarısız giriş sayıları">
-          {% for s in saatlik %}
-            <div class="saat {% if s.saat < 8 or s.saat >= 18 %}mesai-disi{% endif %}" title="{{ '%02d'|format(s.saat) }}:00 · {{ s.basarili }} başarılı, {{ s.basarisiz }} başarısız">
-              <div class="ust"><div class="bar b" style="height: {{ (s.basarili / max_basarili * 100) if max_basarili else 0 }}%"></div></div>
-              <div class="alt-yari"><div class="bar k" style="height: {{ (s.basarisiz / max_basarisiz * 100) if max_basarisiz else 0 }}%"></div></div>
-            </div>
-          {% endfor %}
-        </div>
-        <div class="eksen">{% for s in saatlik %}<span>{{ '%02d'|format(s.saat) }}</span>{% endfor %}</div>
-        <div class="lejant">
-          <span><i style="background:var(--ok)"></i>Başarılı giriş</span>
-          <span><i style="background:var(--alarm)"></i>Başarısız giriş</span>
-        </div>
+  {% if ozet.toplam_log %}
+  <section>
+    <div class="izgara">
+      <div class="panel">
+        <h2 class="bolum">Saatlere göre girişler</h2>
+        <p class="aciklama-metni">Tüm kayıtların günün saatlerine dağılımı. Taralı saatler mesai dışı (08:00-18:00 dışı).</p>
+        <div class="grafik-yer"><canvas id="saatlikGrafik" role="img" aria-label="Saatlere göre başarılı ve başarısız giriş sayıları"></canvas></div>
       </div>
-    {% else %}
-      <div class="bos">Henüz kayıt yok. <a href="{{ url_for('log_yukle') }}">Log dosyası yükleyin.</a></div>
-    {% endif %}
+      <div class="panel">
+        <h2 class="bolum">Kurala göre anomaliler</h2>
+        <p class="aciklama-metni">Hangi kural kaç olay yakaladı.</p>
+        {% if kural_dagilimi %}
+          <div class="grafik-yer kucuk"><canvas id="kuralGrafik" role="img" aria-label="Kurala göre anomali sayıları"></canvas></div>
+        {% else %}
+          <div class="bos">Henüz anomali yok.</div>
+        {% endif %}
+      </div>
+    </div>
   </section>
+  {% endif %}
 
   <section aria-labelledby="son-b">
     <h2 class="bolum" id="son-b">Son giriş kayıtları</h2>
@@ -82,9 +111,9 @@
           <tr><th>Zaman</th><th>IP adresi</th><th>Kullanıcı</th><th>Kaynak</th><th>Sonuç</th></tr>
           {% for l in loglar %}
             <tr>
-              <td>{{ l.zaman.strftime("%d.%m.%Y %H:%M:%S") }}</td>
-              <td>{{ l.ip_adresi }}</td>
-              <td>{{ l.kullanici_adi }}</td>
+              <td class="veri">{{ l.zaman.strftime("%d.%m.%Y %H:%M:%S") }}</td>
+              <td class="veri">{{ l.ip_adresi }}</td>
+              <td class="veri">{{ l.kullanici_adi }}</td>
               <td>{{ l.kaynak }}</td>
               <td><span class="durum {{ l.durum }}">{{ "Başarılı" if l.durum == "basarili" else "Başarısız" }}</span></td>
             </tr>
@@ -96,5 +125,80 @@
     {% endif %}
   </section>
 
-  <p class="ayrac">Gösterilen tüm veriler sentetik test verisidir; gerçek kişi veya kuruma ait değildir.</p>
+  <p class="ayrac">Gösterilen veriler sentetik test verisidir; gerçek kişi veya kuruma ait değildir.</p>
+{% endblock %}
+
+{% block betik %}
+{% if ozet.toplam_log %}
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<script>
+(function () {
+  if (!window.Chart) return;   // grafik kütüphanesi yüklenemezse sayfa yine çalışır
+  var saatlik = {{ saatlik | tojson }};
+  var kurallar = {{ kural_dagilimi | tojson }};
+  var renk = { metin: "#87A3B3", cizgi: "#24404F", canli: "#3FD3C6", yuksek: "#FF5D62", orta: "#F3AA3C", dusuk: "#5FA8FF" };
+  Chart.defaults.color = renk.metin;
+  Chart.defaults.font.family = "'IBM Plex Sans', 'Segoe UI', sans-serif";
+  Chart.defaults.borderColor = renk.cizgi;
+
+  // Mesai dışı saatleri taralı gösteren küçük eklenti
+  var mesaiDisi = {
+    id: "mesaiDisi",
+    beforeDatasetsDraw: function (c) {
+      var x = c.scales.x, a = c.chartArea, ctx = c.ctx, w = x.getPixelForValue(1) - x.getPixelForValue(0);
+      ctx.save(); ctx.fillStyle = "rgba(135,163,179,.07)";
+      for (var h = 0; h < 24; h++) {
+        if (h < 8 || h >= 18) ctx.fillRect(x.getPixelForValue(h) - w / 2, a.top, w, a.bottom - a.top);
+      }
+      ctx.restore();
+    }
+  };
+
+  new Chart(document.getElementById("saatlikGrafik"), {
+    type: "bar",
+    data: {
+      labels: saatlik.map(function (s) { return String(s.saat).padStart(2, "0") + ":00"; }),
+      datasets: [
+        { label: "Başarılı", data: saatlik.map(function (s) { return s.basarili; }), backgroundColor: renk.canli, borderRadius: 2, stack: "g" },
+        { label: "Başarısız", data: saatlik.map(function (s) { return s.basarisiz; }), backgroundColor: renk.yuksek, borderRadius: 2, stack: "g" }
+      ]
+    },
+    options: {
+      maintainAspectRatio: false,
+      interaction: { mode: "index", intersect: false },
+      plugins: { legend: { position: "bottom", labels: { boxWidth: 12 } } },
+      scales: {
+        x: { stacked: true, grid: { display: false }, ticks: { maxRotation: 0, autoSkip: true, maxTicksLimit: 12 } },
+        y: { stacked: true, beginAtZero: true, ticks: { precision: 0 } }
+      }
+    },
+    plugins: [mesaiDisi]
+  });
+
+  var kuralTuval = document.getElementById("kuralGrafik");
+  if (kuralTuval) {
+    new Chart(kuralTuval, {
+      type: "bar",
+      data: {
+        labels: kurallar.map(function (k) { return k.kural; }),
+        datasets: [
+          { label: "Yüksek", data: kurallar.map(function (k) { return k.yuksek; }), backgroundColor: renk.yuksek, stack: "o" },
+          { label: "Orta", data: kurallar.map(function (k) { return k.orta; }), backgroundColor: renk.orta, stack: "o" },
+          { label: "Düşük", data: kurallar.map(function (k) { return k.dusuk; }), backgroundColor: renk.dusuk, stack: "o" }
+        ]
+      },
+      options: {
+        indexAxis: "y", maintainAspectRatio: false,
+        plugins: { legend: { position: "bottom", labels: { boxWidth: 12 } } },
+        scales: {
+          x: { stacked: true, beginAtZero: true, ticks: { precision: 0 } },
+          y: { stacked: true, grid: { display: false },
+               ticks: { callback: function (v) { var t = this.getLabelForValue(v); return t.length > 22 ? t.slice(0, 21) + "…" : t; } } }
+        }
+      }
+    });
+  }
+})();
+</script>
+{% endif %}
 {% endblock %}

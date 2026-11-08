@@ -1,7 +1,8 @@
 {% extends "tanitim_duzen.html" %}
 {% block baslik %}Giriş{% endblock %}
 {% block form %}
-  <h2>Şirket hesabınızla giriş yapın</h2>
+  <h2>Giriş yapın</h2>
+  <p class="giris-alt">Şirket hesabınızla devam edin.</p>
   <form method="post">
     <label for="kullanici_adi">Kullanıcı adı</label>
     <input id="kullanici_adi" name="kullanici_adi" autocomplete="username" required autofocus>
@@ -9,5 +10,5 @@
     <input id="parola" type="password" name="parola" autocomplete="current-password" required>
     <button class="btn tam" type="submit">Giriş yap</button>
   </form>
-  <p class="alt">Hesabınız yok mu? <a href="{{ url_for('kayit') }}">Şirket kaydı</a></p>
+  <p class="alt">Hesabınız yok mu? <a href="{{ url_for('kayit') }}">Şirketinizi kaydedin</a></p>
 {% endblock %}

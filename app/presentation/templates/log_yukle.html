@@ -3,22 +3,32 @@
 {% block icerik %}
   <div class="baslik">
     <h1>Log dosyası yükleyin.</h1>
-    <p>Her satır şu biçimde olmalı: <code>2026-10-23 09:42:10 auth basarisiz user=admin ip=203.0.113.45</code>. Bozuk satırlar atlanır, aynı kayıt iki kez eklenmez, kurallar yüklemeden sonra otomatik çalışır.</p>
+    <p>Bozuk satırlar atlanır, aynı kayıt iki kez eklenmez. Yüklemeden sonra kurallar otomatik çalışır.</p>
   </div>
 
   <section>
-    <form class="form" method="post" enctype="multipart/form-data" style="max-width:460px">
-      <label for="kaynak_id">Kaynak</label>
-      <select id="kaynak_id" name="kaynak_id">
-        <option value="">(seçin)</option>
-        {% for k in kaynaklar %}<option value="{{ k.id }}">{{ k.ad }}</option>{% endfor %}
-      </select>
-      <label for="yeni_kaynak">veya yeni kaynak adı</label>
-      <input id="yeni_kaynak" name="yeni_kaynak" placeholder="Örn: VPN">
-      <label for="dosya">Log dosyası (.log veya .txt, en fazla 2 MB)</label>
-      <input id="dosya" type="file" name="dosya" accept=".log,.txt" required>
-      <button class="btn tam" type="submit">Yükle</button>
-    </form>
+    <div class="izgara">
+      <div class="panel">
+        <form class="form" method="post" enctype="multipart/form-data" style="max-width:none">
+          <label for="kaynak_id" style="margin-top:0">Kaynak</label>
+          <select id="kaynak_id" name="kaynak_id">
+            <option value="">(seçin)</option>
+            {% for k in kaynaklar %}<option value="{{ k.id }}">{{ k.ad }}</option>{% endfor %}
+          </select>
+          <label for="yeni_kaynak">veya yeni kaynak adı</label>
+          <input id="yeni_kaynak" name="yeni_kaynak" placeholder="Örn: VPN">
+          <label for="dosya">Log dosyası (.log veya .txt, en fazla 2 MB)</label>
+          <input id="dosya" type="file" name="dosya" accept=".log,.txt" required>
+          <button class="btn tam" type="submit">Yükle ve tara</button>
+        </form>
+      </div>
+      <div class="panel">
+        <h2 class="bolum">Satır biçimi</h2>
+        <p class="aciklama-metni">Her satır bir giriş denemesi:</p>
+        <code style="display:block; white-space:pre-wrap; color:var(--metin)">2026-10-23 09:42:10 auth basarisiz user=admin ip=203.0.113.45</code>
+        <p class="aciklama-metni" style="margin-top:14px">Durum <code>basarili</code> veya <code>basarisiz</code> olmalı. Proje klasöründeki <code>sample_logs</code> içinde örnek dosyalar var.</p>
+      </div>
+    </div>
   </section>
 
   {% if hatalar %}
@@ -28,7 +38,7 @@
     <div class="tablo-kutu">
       <table>
         <tr><th>Satır</th><th>İçerik</th><th>Hata</th></tr>
-        {% for h in hatalar %}<tr><td>{{ h.satir_no }}</td><td><code>{{ h.satir }}</code></td><td>{{ h.hata }}</td></tr>{% endfor %}
+        {% for h in hatalar %}<tr><td>{{ h.satir_no }}</td><td class="veri">{{ h.satir }}</td><td>{{ h.hata }}</td></tr>{% endfor %}
       </table>
     </div>
   </section>

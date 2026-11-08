@@ -3,17 +3,17 @@
 {% block icerik %}
   <div class="baslik">
     <h1>Kural yönetimi</h1>
-    <p>Şirketinize özel kurallar. Bu sayfayı yalnızca yönetici rolü görebilir. Kural düzenleme Hafta 11'de eklenecek.</p>
+    <p>Şirketinize özel anomali kuralları. Bu sayfayı yalnızca yönetici görebilir. Kuralları düzenleme Hafta 11'de eklenecek.</p>
   </div>
   <section>
     {% if kurallar %}
       <div class="kurallar">
         {% for k in kurallar %}
           <div class="kural">
-            <span class="aktiflik {% if not k.aktif %}pasif{% endif %}">{{ "AKTİF" if k.aktif else "PASİF" }}</span>
+            <span class="aktiflik {% if not k.aktif %}pasif{% endif %}">{{ "Aktif" if k.aktif else "Pasif" }}</span>
             <h3>{{ k.ad }}</h3>
             <div class="deger">
-              {% if k.esik %}{{ k.pencere_dk }} dakika içinde en az {{ k.esik }} olay{% else %}Mesai dışı (08:00-18:00 dışı) başarılı girişler{% endif %}
+              {% if k.esik %}{{ k.pencere_dk }} dakika içinde en az {{ k.esik }} olay{% else %}Mesai dışında (08:00-18:00 dışı) yapılan başarılı girişler{% endif %}
             </div>
           </div>
         {% endfor %}

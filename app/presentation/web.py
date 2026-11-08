@@ -3,7 +3,7 @@ import os
 from dotenv import load_dotenv
 from flask import Flask, flash, redirect, render_template, request, session, url_for
 
-from app.business.anomali_servisi import anomali_taramasi
+from app.business.anomali_servisi import anomali_taramasi, ozetleri_tamamla
 from app.business.auth import parola_dogrula, parola_hashle
 from app.business.log_parser import dosya_ayristir
 from app.data import crud
@@ -75,10 +75,11 @@ def pano():
     anomaliler = crud.anomalileri_getir(sirket_id, adet=20)
     ozet = crud.pano_ozeti(sirket_id)
     saatlik = crud.saatlik_dagilim(sirket_id)
+    kural_dagilimi = crud.kural_dagilimi(sirket_id)
+    ozetsiz = len(crud.ozetsiz_anomaliler(sirket_id))
     return render_template(
-        "pano.html", loglar=loglar, anomaliler=anomaliler, ozet=ozet, saatlik=saatlik,
-        max_basarili=max(s["basarili"] for s in saatlik),
-        max_basarisiz=max(s["basarisiz"] for s in saatlik),
+        "pano.html", loglar=loglar, anomaliler=anomaliler, ozet=ozet,
+        saatlik=saatlik, kural_dagilimi=kural_dagilimi, ozetsiz=ozetsiz,
     )
 
 
@@ -89,6 +90,17 @@ def tarama():
         return redirect(url_for("giris"))
     bulgu, yeni = anomali_taramasi(session["sirket_id"])
     flash(f"Tarama tamamlandı: {bulgu} bulgu, {yeni} yeni anomali.")
+    return redirect(url_for("pano"))
+
+
+@app.route("/ozetle", methods=["POST"])
+def ozetle():
+    """Özeti olmayan anomaliler için özet üretir (Hafta 10)."""
+    if "kullanici_id" not in session:
+        flash("Önce giriş yapın.")
+        return redirect(url_for("giris"))
+    sayi = ozetleri_tamamla(session["sirket_id"])
+    flash(f"{sayi} uyarı için özet oluşturuldu.")
     return redirect(url_for("pano"))
 
 
@@ -157,4 +169,4 @@ if __name__ == "__main__":
     # GÜVENLİK: debug modu sadece FLASK_DEBUG=1 ise açılır. Uygulama internete
     # açıldığında (canlı link) debug kapalı olmalı, yoksa hata sayfasından
     # sunucuda kod çalıştırılabilir.
-    app.run(debug=os.getenv("FLASK_DEBUG") == "1")
+    app.run(debug=os.getenv("FLASK_DEBUG") == "1")

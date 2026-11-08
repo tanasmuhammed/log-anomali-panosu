@@ -5,15 +5,26 @@ KVKK uyumu: Buradaki kullanıcı adları uydurmadır, IP adresleri ise
 dokümantasyon için ayrılmış aralıklardan seçilmiştir (192.0.2.x,
 198.51.100.x, 203.0.113.x). Gerçek kişi veya kuruma ait veri yoktur.
 
+Hafta 8: Panel kullanıcılarının parolası artık gerçek bcrypt hash'i.
+Tüm demo hesapların parolası: demo12345  (sadece sentetik demo verisi için)
+Veri yüklendikten sonra her şirket için kurallar çalıştırılır, böylece
+pano ilk açılışta anomalileri gösterir.
+
+DİKKAT: Bu betik tüm tabloları SİLİP baştan doldurur.
+
 Çalıştırma (proje klasöründen):
     python -m app.data.seed
 """
 import random
 from datetime import datetime, timedelta
 
+from app.business.anomali_servisi import anomali_taramasi
+from app.business.auth import parola_hashle
 from app.data.db import get_connection
 
 random.seed(27)  # her çalıştırmada aynı veri üretilsin
+
+DEMO_PAROLA = "demo12345"
 
 # Silme sırası önemli: önce "çocuk" tablolar, sonra "ebeveyn" tablolar
 SILME_SIRASI = ["uyari", "anomali_log", "anomali", "log_kaydi",
@@ -126,7 +137,7 @@ def saldiri_loglari(sirket_id, web_id, vpn_id, tip, simdi):
 
 def ozet(cur):
     print("\nTablo satır sayıları:")
-    for tablo in ["sirket", "kullanici", "kaynak", "kural", "log_kaydi"]:
+    for tablo in ["sirket", "kullanici", "kaynak", "kural", "log_kaydi", "anomali"]:
         adet = cur.execute(f"SELECT COUNT(*) FROM {tablo}").fetchone()[0]
         print(f"  {tablo:<10} {adet}")
 
@@ -136,18 +147,20 @@ def main():
     with get_connection() as conn:
         cur = conn.cursor()
         sifirla(cur)
+        parola_hash = parola_hashle(DEMO_PAROLA)   # bcrypt yavaş: bir kez hesapla
+        sirket_idleri = []
 
         for sirket, tip in zip(SIRKETLER, ["A", "B"]):
             sirket_id = cur.execute(
                 "INSERT INTO sirket (ad) OUTPUT INSERTED.id VALUES (?)",
                 sirket["ad"]).fetchone()[0]
+            sirket_idleri.append(sirket_id)
 
             for kadi, rol in sirket["panel_kullanicilari"]:
-                # Gerçek parola hash'leme Hafta 5'te yazılacak
                 cur.execute(
                     "INSERT INTO kullanici (sirket_id, kullanici_adi, parola_hash, rol) "
                     "VALUES (?, ?, ?, ?)",
-                    sirket_id, kadi, "HASH_HAFTA5_ICIN_YER_TUTUCU", rol)
+                    sirket_id, kadi, parola_hash, rol)
 
             kaynak_idleri = []
             for ad, tur in sirket["kaynaklar"]:
@@ -171,8 +184,16 @@ def main():
                 "VALUES (?, ?, ?, ?, ?, ?, ?)", loglar)
 
         conn.commit()
-        ozet(cur)
-    print("\nSentetik veri yüklendi.")
+
+    # Kurallar ayrı bağlantıyla çalışır, bu yüzden veriler önce commit edildi.
+    # ek_islemler=False: ilk yüklemede e-posta gönderilmez.
+    for sirket_id in sirket_idleri:
+        bulgu, yeni = anomali_taramasi(sirket_id, ek_islemler=False)
+        print(f"  Şirket {sirket_id}: {bulgu} bulgu, {yeni} anomali kaydedildi")
+
+    with get_connection() as conn:
+        ozet(conn.cursor())
+    print(f"\nSentetik veri yüklendi. Demo hesap parolası: {DEMO_PAROLA}")
 
 
 if __name__ == "__main__":
