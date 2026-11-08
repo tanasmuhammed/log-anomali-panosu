@@ -289,14 +289,15 @@ def loglari_getir(sirket_id):
 
 def anomalileri_kaydet(sirket_id, bulgular):
     """Kural motorunun bulgularını anomali, anomali_log ve uyari tablolarına
-    TEK işlemde yazar. Dönen değer: yeni kaydedilen anomali sayısı.
+    TEK işlemde yazar. Dönen değer: yeni kaydedilen anomalilerin id listesi
+    (Hafta 9: e-posta ve özet için hangi anomalilerin yeni olduğu gerekiyor).
 
     İş kuralı: bir bulgunun kanıt log kayıtlarından biri, AYNI kural tarafından
     zaten bir anomaliye bağlanmışsa o bulgu tekrar kaydedilmez. Böylece tarama
     her çalıştığında aynı saldırı için yeni uyarı üretilmez.
     """
     if not bulgular:
-        return 0
+        return []
     with _oturum() as cur:
         cur.execute(
             "SELECT a.kural_id, al.log_id FROM anomali a "
@@ -304,7 +305,7 @@ def anomalileri_kaydet(sirket_id, bulgular):
             "WHERE a.sirket_id = ?", sirket_id)
         kullanilmis = {(satir[0], satir[1]) for satir in cur.fetchall()}
 
-        yeni = 0
+        yeni_idler = []
         for b in bulgular:
             if any((b["kural_id"], log_id) in kullanilmis for log_id in b["log_idler"]):
                 continue
@@ -317,26 +318,104 @@ def anomalileri_kaydet(sirket_id, bulgular):
                 [(anomali_id, log_id) for log_id in b["log_idler"]])
             cur.execute("INSERT INTO uyari (anomali_id, kanal) VALUES (?, 'panel')", anomali_id)
             kullanilmis.update((b["kural_id"], log_id) for log_id in b["log_idler"])
-            yeni += 1
-        return yeni
+            yeni_idler.append(anomali_id)
+        return yeni_idler
 
 
 def anomalileri_getir(sirket_id, adet=20):
-    """Şirketin anomalilerini önem sırasına göre döndürür (önce yüksek)."""
+    """Şirketin anomalilerini önem sırasına göre döndürür (önce yüksek).
+    Hafta 9: IP konumu (ip_konum tablosundan) ve kanıt sayısı eklendi.
+    Hafta 10: yapay zekâ / kural tabanlı özet eklendi."""
     sql = """
-        SELECT TOP (?) a.id, a.ip_adresi, a.onem, a.aciklama, k.ad AS kural,
+        SELECT TOP (?) a.id, a.ip_adresi, a.onem, a.aciklama, a.ai_ozeti, a.ai_ozet_kaynagi,
+               k.ad AS kural, k.kural_turu,
+               ik.ulke, ik.sehir, ik.kurulus, ik.ayrilmis,
                (SELECT MIN(l.zaman)
                   FROM anomali_log al
                   JOIN log_kaydi l ON l.id = al.log_id
-                 WHERE al.anomali_id = a.id) AS olay_zamani
+                 WHERE al.anomali_id = a.id) AS olay_zamani,
+               (SELECT COUNT(*) FROM anomali_log al
+                 WHERE al.anomali_id = a.id) AS kanit_sayisi
         FROM anomali a
         JOIN kural k ON k.id = a.kural_id
+        LEFT JOIN ip_konum ik ON ik.ip_adresi = a.ip_adresi
         WHERE a.sirket_id = ?
         ORDER BY CASE a.onem WHEN 'yuksek' THEN 0 WHEN 'orta' THEN 1 ELSE 2 END, a.id DESC
     """
     with _oturum() as cur:
         cur.execute(sql, adet, sirket_id)
         return _sozluk_listesi(cur)
+
+
+def anomali_kanitlari(sirket_id, anomali_id):
+    """Bir anomaliyi ve ona bağlı (kanıt) log kayıtlarını döndürür.
+    E-posta bildirimi ve özet üretimi bu veriyi kullanır.
+    Anomali bu şirkete ait değilse None döner."""
+    with _oturum() as cur:
+        cur.execute(
+            "SELECT a.id, a.ip_adresi, a.onem, a.aciklama, k.ad AS kural, k.kural_turu "
+            "FROM anomali a JOIN kural k ON k.id = a.kural_id "
+            "WHERE a.id = ? AND a.sirket_id = ?", anomali_id, sirket_id)
+        satirlar = _sozluk_listesi(cur)
+        if not satirlar:
+            return None
+        anomali = satirlar[0]
+        cur.execute(
+            "SELECT l.zaman, l.ip_adresi, l.kullanici_adi, l.durum "
+            "FROM anomali_log al JOIN log_kaydi l ON l.id = al.log_id "
+            "WHERE al.anomali_id = ? AND l.sirket_id = ? ORDER BY l.zaman",
+            anomali_id, sirket_id)
+        anomali["kanitlar"] = _sozluk_listesi(cur)
+        return anomali
+
+
+def uyari_ekle(anomali_id, kanal):
+    """Gönderilen bir uyarıyı kaydeder (ör. kanal='eposta')."""
+    with _oturum() as cur:
+        cur.execute("INSERT INTO uyari (anomali_id, kanal) VALUES (?, ?)", anomali_id, kanal)
+
+
+# ====================== IP KONUM ÖNBELLEĞİ (Hafta 9) ======================
+# ip_konum tablosu şirkete özel değildir: bir IP'nin konumu herkes için aynıdır.
+# Kişisel veri tutmaz; sadece IP adresinin hangi ülke/kuruma ait olduğunu saklar.
+
+def ip_konum_getir(ip_adresi):
+    with _oturum() as cur:
+        cur.execute("SELECT ip_adresi, ulke, sehir, kurulus, ayrilmis "
+                    "FROM ip_konum WHERE ip_adresi = ?", ip_adresi)
+        satirlar = _sozluk_listesi(cur)
+        return satirlar[0] if satirlar else None
+
+
+def ip_konum_kaydet(konum):
+    """Konumu kaydeder; IP zaten varsa günceller."""
+    with _oturum() as cur:
+        cur.execute(
+            "UPDATE ip_konum SET ulke = ?, sehir = ?, kurulus = ?, ayrilmis = ?, "
+            "guncelleme = SYSDATETIME() WHERE ip_adresi = ?",
+            konum["ulke"], konum["sehir"], konum["kurulus"], konum["ayrilmis"], konum["ip_adresi"])
+        if cur.rowcount == 0:
+            cur.execute(
+                "INSERT INTO ip_konum (ip_adresi, ulke, sehir, kurulus, ayrilmis) "
+                "VALUES (?, ?, ?, ?, ?)",
+                konum["ip_adresi"], konum["ulke"], konum["sehir"], konum["kurulus"], konum["ayrilmis"])
+
+
+# ====================== ÖZET (Hafta 10) ======================
+
+def anomali_ozet_kaydet(sirket_id, anomali_id, metin, kaynak):
+    """Anomalinin özetini yazar. kaynak: 'ai' (yapay zekâ) veya 'kural' (şablon)."""
+    with _oturum() as cur:
+        cur.execute("UPDATE anomali SET ai_ozeti = ?, ai_ozet_kaynagi = ? "
+                    "WHERE id = ? AND sirket_id = ?", metin, kaynak, anomali_id, sirket_id)
+
+
+def ozetsiz_anomaliler(sirket_id):
+    """Henüz özeti olmayan anomalilerin id listesi."""
+    with _oturum() as cur:
+        cur.execute("SELECT id FROM anomali WHERE sirket_id = ? AND ai_ozeti IS NULL "
+                    "ORDER BY id", sirket_id)
+        return [satir[0] for satir in cur.fetchall()]
 
 # ====================== PANO ======================
 
@@ -369,3 +448,23 @@ def saatlik_dagilim(sirket_id):
         cur.execute(sql, sirket_id)
         satirlar = {s["saat"]: s for s in _sozluk_listesi(cur)}
     return [satirlar.get(h, {"saat": h, "basarili": 0, "basarisiz": 0}) for h in range(24)]
+
+
+def kural_dagilimi(sirket_id):
+    """Panodaki grafik için: her kural kaç anomali buldu, önem derecesine göre.
+    Hiç anomali bulmamış kurallar listede yer almaz."""
+    sql = """
+        SELECT k.ad AS kural,
+               SUM(CASE WHEN a.onem = 'yuksek' THEN 1 ELSE 0 END) AS yuksek,
+               SUM(CASE WHEN a.onem = 'orta'   THEN 1 ELSE 0 END) AS orta,
+               SUM(CASE WHEN a.onem = 'dusuk'  THEN 1 ELSE 0 END) AS dusuk,
+               COUNT(*) AS toplam
+        FROM anomali a
+        JOIN kural k ON k.id = a.kural_id
+        WHERE a.sirket_id = ?
+        GROUP BY k.ad
+        ORDER BY toplam DESC
+    """
+    with _oturum() as cur:
+        cur.execute(sql, sirket_id)
+        return _sozluk_listesi(cur)
