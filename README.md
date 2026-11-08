@@ -7,7 +7,7 @@ gösteren ve uyarı üreten çok şirketli bir web uygulamasıdır.
 > **Ders:** Bilgisayar Uygulamaları I (Proje Tabanlı Ders)
 > **Proje:** P27, Günlük (Log) Anomali İzleme Panosu
 > **Geliştirici:** Muhammed Berkin Tanas
-> **Durum:** Geliştirme aşamasında. Hafta 3-7 tamamlandı: veritabanı, giriş ve roller, log içe aktarma ve anomali kuralları çalışıyor. Sırada Hafta 8 (vize).
+> **Durum:** Geliştirme aşamasında. Hafta 3-10 tamamlandı: veritabanı, giriş ve roller, log içe aktarma, anomali kuralları, IP konumu, e-posta bildirimi ve yapay zekâ özeti çalışıyor. Ara sürüm: `v0.1.0`. Sırada Hafta 11 (kural editörü).
 
 ---
 
@@ -33,6 +33,8 @@ giriş loglarını görür.
 | Kural editörü | Şirket yöneticisinin eşik değerlerini ayarlaması |
 | Rol tabanlı erişim | Yönetici ve analist rolleri |
 | Yapay zekâ özeti | Anomalilerin kısa ve anlaşılır özeti |
+| IP konumu | Saldıran IP'nin ülke / şehir / kuruluş bilgisi (önbellekli) |
+| E-posta bildirimi | Yüksek önemli uyarıda yöneticiye e-posta (isteğe bağlı) |
 | Rapor | Dışa aktarılabilir özet rapor |
 
 ### Anomali kuralları (başlangıç seti)
@@ -58,7 +60,7 @@ değişirse yalnızca veri katmanı etkilenir.
 ## 4. Veritabanı
 
 Veritabanı **Microsoft SQL Server** üzerinde `LogAnomali` adıyla kurulur.
-Toplam 8 tablo vardır:
+Toplam 9 tablo vardır (8 ana tablo + `ip_konum` önbelleği):
 
 | Tablo | Açıklama |
 |---|---|
@@ -69,7 +71,8 @@ Toplam 8 tablo vardır:
 | `kural` | Şirkete özel anomali kuralları ve eşikleri |
 | `anomali` | Bir kuralın yakaladığı şüpheli durum |
 | `anomali_log` | Anomali ile log kaydı arasındaki çoktan-çoğa ilişki (ara tablo) |
-| `uyari` | Gösterilen veya gönderilen bildirim |
+| `uyari` | Gösterilen veya gönderilen bildirim (kanal: panel / eposta) |
+| `ip_konum` | IP konum önbelleği (şirkete özel değil, kişisel veri tutmaz) |
 
 **İlişkiler:** Bir şirketin çok kullanıcısı, kaynağı, kuralı ve logu vardır (1-N).
 Bir anomali birden çok log kaydından oluşabilir ve bir log birden çok anomaliye
@@ -97,7 +100,9 @@ taşır. Her sorguda bu alana göre filtre uygulanır.
 ├── sample_logs/                # Sentetik örnek log dosyaları
 ├── sql/
 │   ├── 01_tablolar.sql         # Tabloları oluşturan script
-│   └── 02_anomali_aciklama.sql # Migration: anomali açıklama kolonu
+│   ├── 02_anomali_aciklama.sql # Migration: anomali açıklama kolonu
+│   ├── 03_ip_konum.sql         # Migration: IP konum önbelleği (Hafta 9)
+│   └── 04_ai_ozet.sql          # Migration: özet kaynağı kolonu (Hafta 10)
 ├── tests/                      # pytest testleri
 ├── .env.example                # Ortam değişkenleri şablonu
 ├── .gitignore
@@ -113,7 +118,9 @@ taşır. Her sorguda bu alana göre filtre uygulanır.
 - **pyodbc**: Python ile SQL Server bağlantısı
 - **python-dotenv**: ayarları `.env` dosyasından okuma
 - **pytest**: testler
-- **HTML, CSS, JavaScript**: arayüz
+- **HTML, CSS, JavaScript, Chart.js**: arayüz ve grafikler
+- **ipwho.is**: IP konum servisi (anahtarsız)
+- **Anthropic Messages API**: yapay zekâ özeti (isteğe bağlı)
 
 ## 7. Kurulum
 
@@ -127,7 +134,7 @@ taşır. Her sorguda bu alana göre filtre uygulanır.
 
 **1. Depoyu indirin**
 ```bash
-git clone https://github.com/mamimontanas/log-anomali-panosu.git
+git clone https://github.com/tanasmuhammed/log-anomali-panosu.git
 cd log-anomali-panosu
 ```
 
@@ -144,8 +151,9 @@ SSMS'te yeni bir sorgu penceresi açıp şunu çalıştırın:
 ```sql
 CREATE DATABASE LogAnomali;
 ```
-Ardından `sql/01_tablolar.sql` dosyasını SSMS'te açıp çalıştırın. Sonunda 8 tablo
-listelenmelidir.
+Ardından `sql` klasöründeki dosyaları **sırayla** SSMS'te açıp çalıştırın:
+`01_tablolar.sql`, `02_anomali_aciklama.sql`, `03_ip_konum.sql`, `04_ai_ozet.sql`.
+02-04 tekrar çalıştırılırsa zarar vermez.
 
 **4. Ayar dosyasını hazırlayın**
 
@@ -157,17 +165,42 @@ DB_DRIVER=ODBC Driver 18 for SQL Server
 DB_TRUSTED=yes
 ```
 `.env` dosyası GitHub'a yüklenmez, parola ve bağlantı bilgisi içerebilir.
+E-posta (`SMTP_...`) ve yapay zekâ (`ANTHROPIC_API_KEY`) ayarları isteğe bağlıdır;
+boş bırakılırsa e-posta gönderilmez ve özetler kural tabanlı şablonla yazılır.
 
 **5. Bağlantıyı test edin**
 ```bash
 python -m app.data.db
 ```
 
-## 8. Prototip ekran
+**6. Demo verisini yükleyin ve çalıştırın**
+```bash
+python -m app.data.seed
+python -m app.presentation.web
+```
+`seed` tüm tabloları silip sentetik veriyle baştan doldurur. Tarayıcıda
+`http://127.0.0.1:5000` adresini açın. Demo hesaplar (parola: `demo12345`):
+`yonetici_mavi`, `analist_mavi`, `yonetici_yesil`, `analist_yesil`.
 
-`docs/pano_demo.html` dosyasını tarayıcıda açarak arayüz tasarımını görebilirsiniz.
-Bu ekran **tasarım prototipidir**: veriler koda gömülü sentetik örneklerdir ve henüz
-veritabanına bağlı değildir. İki örnek şirketle çok şirketli yapıyı gösterir.
+**7. Testler**
+```bash
+python -m pytest tests -v
+```
+
+**8. Geçici canlı link (isteğe bağlı)**
+
+Uygulama çalışırken ikinci bir terminalde:
+```bash
+cloudflared tunnel --url http://127.0.0.1:5000
+```
+Verilen `trycloudflare.com` adresi terminal kapanana kadar çalışır.
+Link açıkken `.env` içinde `FLASK_DEBUG=0` olmalıdır.
+
+## 8. Arayüz
+
+Hafta 8'de arayüz koyu bir güvenlik paneli tarzında yenilendi: tehdit seviyesi
+şeridi, ölçümler, açılır uyarı listesi (konum ve özetle), Chart.js grafikleri.
+`docs/pano_demo.html` Hafta 3'teki ilk tasarım prototipidir (koda gömülü sentetik veri).
 
 ## 9. Geliştirme planı
 
@@ -178,10 +211,10 @@ veritabanına bağlı değildir. İki örnek şirketle çok şirketli yapıyı g
 | 5 | Kullanıcı yönetimi ve kimlik doğrulama | Tamamlandı |
 | 6 | Log içe aktarma ve ayrıştırma | Tamamlandı |
 | 7 | Anomali tespit kuralları | Tamamlandı |
-| 8 | Vize: ara sürüm ve demo | Sırada |
-| 9 | Harici API entegrasyonu | Planlandı |
-| 10 | Yapay zekâ bileşeni | Planlandı |
-| 11 | Kural editörü | Planlandı |
+| 8 | Vize: ara sürüm, uçtan uca test, arayüz yenileme | Tamamlandı |
+| 9 | IP konumu ve e-posta bildirimi | Tamamlandı |
+| 10 | Yapay zekâ özeti (maskeleme, doğrulama, yedek özet) | Tamamlandı |
+| 11 | Kural editörü | Sırada |
 | 12 | Pano ve rapor | Planlandı |
 | 13 | Test ve hata ayıklama | Planlandı |
 | 14 | Dokümantasyon ve dağıtım hazırlığı | Planlandı |
@@ -193,6 +226,10 @@ veritabanına bağlı değildir. İki örnek şirketle çok şirketli yapıyı g
 - Parolalar düz metin saklanmaz, bcrypt ile tuzlanıp hash'lenir.
 - Gizli bilgiler (`.env`, API anahtarları) depoya yüklenmez.
 - Şirketler arası veri izolasyonu her sorguda `sirket_id` filtresiyle sağlanır.
+- IP konum servisine yalnızca IP adresi gider.
+- Yapay zekâ modeline ham log gönderilmez: kullanıcı adları (`a***`) ve IP'nin son
+  bölümü (`198.51.100.x`) maskelenir, şirket adı gönderilmez. Modelin cevabı
+  doğrulanır; veride olmayan sayı içeren özet reddedilir.
 
 ## 11. Yapay zekâ kullanım beyanı
 
