@@ -154,6 +154,48 @@ def kural_guncelle(sirket_id, kural_id, esik, pencere_dk):
         return cur.execute(sql, esik, pencere_dk, kural_id, sirket_id).rowcount
 
 
+def kural_getir(sirket_id, kural_id):
+    """Tek bir kuralı döndürür. Kural yoksa veya başka şirkete aitse None."""
+    with _oturum() as cur:
+        cur.execute("SELECT id, ad, kural_turu, esik, pencere_dk, aktif FROM kural "
+                    "WHERE id = ? AND sirket_id = ?", kural_id, sirket_id)
+        satirlar = _sozluk_listesi(cur)
+        return satirlar[0] if satirlar else None
+
+
+def kurallar_ozetli(sirket_id):
+    """Kural editörü listesi için: her kural ve bugüne kadar bulduğu anomali sayısı."""
+    sql = """
+        SELECT k.id, k.ad, k.kural_turu, k.esik, k.pencere_dk, k.aktif,
+               (SELECT COUNT(*) FROM anomali a WHERE a.kural_id = k.id) AS anomali_sayisi
+        FROM kural k
+        WHERE k.sirket_id = ?
+        ORDER BY k.id
+    """
+    with _oturum() as cur:
+        cur.execute(sql, sirket_id)
+        return _sozluk_listesi(cur)
+
+
+def kural_duzenle(sirket_id, kural_id, ad, esik, pencere_dk):
+    """Kuralın adını, eşiğini ve süresini değiştirir (Hafta 11, kural editörü).
+    Kural türü değiştirilmez: türü değişen kural aslında başka bir kuraldır ve
+    eski anomalilerin anlamı bozulur. Dönen değer 1 (güncellendi) veya 0."""
+    sql = """
+        UPDATE kural SET ad = ?, esik = ?, pencere_dk = ?
+        WHERE id = ? AND sirket_id = ?
+    """
+    with _oturum() as cur:
+        return cur.execute(sql, ad, esik, pencere_dk, kural_id, sirket_id).rowcount
+
+
+def kural_aktiflik_degistir(sirket_id, kural_id, aktif):
+    """Kuralı aktif (1) veya pasif (0) yapar. Pasif kural taramada çalışmaz."""
+    sql = "UPDATE kural SET aktif = ? WHERE id = ? AND sirket_id = ?"
+    with _oturum() as cur:
+        return cur.execute(sql, 1 if aktif else 0, kural_id, sirket_id).rowcount
+
+
 # ====================== DELETE ======================
 
 def kural_sil(sirket_id, kural_id):
@@ -166,7 +208,8 @@ def kural_sil(sirket_id, kural_id):
         with _oturum() as cur:
             return cur.execute(sql, kural_id, sirket_id).rowcount
     except pyodbc.IntegrityError:
-        raise ValueError("Bu kurala bağlı anomali kayıtları var, silinemez.")
+        raise ValueError("Bu kurala bağlı anomali kayıtları var, silinemez. "
+                         "Kuralı pasif yaparak çalışmasını durdurabilirsiniz.")
 
 
 # ====================== KULLANICI ======================
@@ -467,4 +510,97 @@ def kural_dagilimi(sirket_id):
     """
     with _oturum() as cur:
         cur.execute(sql, sirket_id)
+        return _sozluk_listesi(cur)
+
+
+# ====================== RAPOR (Hafta 12) ======================
+# Tüm rapor sorguları [baslangic, bitis) aralığında çalışır: başlangıç dahil,
+# bitiş hariç. Böylece "1-7 Kasım" raporu 7 Kasım 23:59'a kadar her şeyi kapsar
+# (bitiş olarak 8 Kasım 00:00 verilir).
+
+def rapor_log_ozeti(sirket_id, baslangic, bitis):
+    """Aralıktaki giriş sayıları: toplam, başarısız, farklı IP, farklı kullanıcı."""
+    sql = """
+        SELECT COUNT(*) AS toplam,
+               SUM(CASE WHEN durum = 'basarisiz' THEN 1 ELSE 0 END) AS basarisiz,
+               COUNT(DISTINCT ip_adresi) AS farkli_ip,
+               COUNT(DISTINCT kullanici_adi) AS farkli_kullanici
+        FROM log_kaydi
+        WHERE sirket_id = ? AND zaman >= ? AND zaman < ?
+    """
+    with _oturum() as cur:
+        cur.execute(sql, sirket_id, baslangic, bitis)
+        sonuc = _sozluk_listesi(cur)[0]
+    sonuc["basarisiz"] = sonuc["basarisiz"] or 0   # hiç kayıt yoksa SUM NULL döner
+    return sonuc
+
+
+def rapor_gunluk_loglar(sirket_id, baslangic, bitis):
+    """Aralıktaki girişlerin günlere göre başarılı/başarısız sayıları.
+    Kaydı olmayan günler burada yoktur; iş katmanı onları 0 ile doldurur."""
+    sql = """
+        SELECT CAST(zaman AS DATE) AS gun,
+               SUM(CASE WHEN durum = 'basarili'  THEN 1 ELSE 0 END) AS basarili,
+               SUM(CASE WHEN durum = 'basarisiz' THEN 1 ELSE 0 END) AS basarisiz
+        FROM log_kaydi
+        WHERE sirket_id = ? AND zaman >= ? AND zaman < ?
+        GROUP BY CAST(zaman AS DATE)
+        ORDER BY gun
+    """
+    with _oturum() as cur:
+        cur.execute(sql, sirket_id, baslangic, bitis)
+        return _sozluk_listesi(cur)
+
+
+def rapor_anomalileri(sirket_id, baslangic, bitis):
+    """Olay zamanı aralığa düşen anomaliler (olay zamanı = kanıt loglarının ilki).
+    Rapordaki IP, kural ve önem dağılımları bu listeden hesaplanır."""
+    sql = """
+        WITH olaylar AS (
+            SELECT al.anomali_id, MIN(l.zaman) AS olay_zamani, COUNT(*) AS kanit_sayisi
+            FROM anomali_log al
+            JOIN log_kaydi l ON l.id = al.log_id
+            WHERE l.sirket_id = ?
+            GROUP BY al.anomali_id
+        )
+        SELECT a.id, o.olay_zamani, k.ad AS kural, a.onem, a.ip_adresi, a.aciklama,
+               a.ai_ozeti, o.kanit_sayisi, ik.ulke, ik.sehir, ik.ayrilmis
+        FROM anomali a
+        JOIN olaylar o ON o.anomali_id = a.id
+        JOIN kural k ON k.id = a.kural_id
+        LEFT JOIN ip_konum ik ON ik.ip_adresi = a.ip_adresi
+        WHERE a.sirket_id = ? AND o.olay_zamani >= ? AND o.olay_zamani < ?
+        ORDER BY o.olay_zamani
+    """
+    with _oturum() as cur:
+        cur.execute(sql, sirket_id, sirket_id, baslangic, bitis)
+        return _sozluk_listesi(cur)
+
+
+def rapor_hedef_kullanicilar(sirket_id, baslangic, bitis, adet=10):
+    """Aralıkta en çok başarısız giriş denenen kullanıcı adları."""
+    sql = """
+        SELECT TOP (?) kullanici_adi, COUNT(*) AS basarisiz,
+               COUNT(DISTINCT ip_adresi) AS farkli_ip
+        FROM log_kaydi
+        WHERE sirket_id = ? AND durum = 'basarisiz' AND zaman >= ? AND zaman < ?
+        GROUP BY kullanici_adi
+        ORDER BY basarisiz DESC, kullanici_adi
+    """
+    with _oturum() as cur:
+        cur.execute(sql, adet, sirket_id, baslangic, bitis)
+        return _sozluk_listesi(cur)
+
+
+def loglari_aralikta(sirket_id, baslangic, bitis, adet=50000):
+    """CSV dışa aktarma için aralıktaki log kayıtları (en fazla 'adet' satır)."""
+    sql = """
+        SELECT TOP (?) l.zaman, k.ad AS kaynak, l.ip_adresi, l.kullanici_adi, l.durum
+        FROM log_kaydi l
+        JOIN kaynak k ON k.id = l.kaynak_id
+        WHERE l.sirket_id = ? AND l.zaman >= ? AND l.zaman < ?
+        ORDER BY l.zaman
+    """
+    with _oturum() as cur:
+        cur.execute(sql, adet, sirket_id, baslangic, bitis)
         return _sozluk_listesi(cur)

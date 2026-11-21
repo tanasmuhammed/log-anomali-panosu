@@ -1,0 +1,9 @@
+{% extends "base.html" %}
+{% block baslik %}Hata {{ kod }}{% endblock %}
+{% block govde %}
+<main class="hata-sayfasi">
+  <p class="hata-kod">{{ kod }}</p>
+  <h1>{{ mesaj }}</h1>
+  <p><a class="btn" href="{{ url_for('ana_sayfa') }}">Ana sayfaya dön</a></p>
+</main>
+{% endblock %}

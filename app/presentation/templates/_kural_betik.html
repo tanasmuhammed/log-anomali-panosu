@@ -1,0 +1,17 @@
+<script>
+// Kural türü "Mesai dışı giriş" seçilince eşik ve süre alanları gizlenir.
+// JavaScript kapalı olsa da sunucu bu alanları zaten yok sayar.
+(function () {
+  var secici = document.querySelector("[data-tur-secici]");
+  if (!secici) return;
+  var alanlar = document.querySelector("[data-esik-alanlari]");
+  var aciklama = document.querySelector("[data-tur-aciklama]");
+  var aciklamalar = {{ turler | tojson }};
+  function guncelle() {
+    var secili = secici.options[secici.selectedIndex];
+    alanlar.hidden = secili.dataset.esikli !== "1";
+    aciklama.textContent = aciklamalar[secici.value].aciklama;
+  }
+  secici.addEventListener("change", guncelle);
+})();
+</script>

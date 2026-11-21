@@ -4,6 +4,7 @@
   <h2>Giriş yapın</h2>
   <p class="giris-alt">Şirket hesabınızla devam edin.</p>
   <form method="post">
+    <input type="hidden" name="csrf" value="{{ csrf_token() }}">
     <label for="kullanici_adi">Kullanıcı adı</label>
     <input id="kullanici_adi" name="kullanici_adi" autocomplete="username" required autofocus>
     <label for="parola">Parola</label>

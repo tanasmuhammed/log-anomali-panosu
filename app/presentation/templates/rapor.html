@@ -1,0 +1,192 @@
+{% extends "uygulama_duzen.html" %}
+{% set ONEM = {"yuksek": "Yüksek", "orta": "Orta", "dusuk": "Düşük"} %}
+{% block baslik %}Rapor{% endblock %}
+{% block icerik %}
+  {% set sorgu = {"bas": r.bas.isoformat(), "bit": r.bit.isoformat()} %}
+
+  <div class="baski-basligi">
+    <strong>Gözcü güvenlik raporu</strong> · {{ session.sirket_adi }} ·
+    {{ r.bas.strftime("%d.%m.%Y") }} – {{ r.bit.strftime("%d.%m.%Y") }} · Oluşturma: {{ olusturma }}
+  </div>
+
+  <div class="serit ekran">
+    <form class="aralik" method="get" action="{{ url_for('rapor') }}">
+      <label>Başlangıç <input type="date" name="bas" value="{{ r.bas.isoformat() }}" max="{{ bugun.isoformat() }}"></label>
+      <label>Bitiş <input type="date" name="bit" value="{{ r.bit.isoformat() }}" max="{{ bugun.isoformat() }}"></label>
+      <button class="btn ikincil" type="submit">Göster</button>
+    </form>
+    <div class="dugmeler">
+      <a class="btn ikincil" href="{{ url_for('rapor_anomali_csv', **sorgu) }}">Anomalileri indir (CSV)</a>
+      <a class="btn ikincil" href="{{ url_for('rapor_log_csv', **sorgu) }}">Giriş kayıtlarını indir (CSV)</a>
+      <button class="btn" type="button" onclick="window.print()">Yazdır / PDF kaydet</button>
+    </div>
+  </div>
+
+  <div class="baslik">
+    <h1>Güvenlik raporu: {{ r.gun_sayisi }} gün</h1>
+    {% set eb = r.egilim_basarisiz %}
+    <p>
+      {{ r.bas.strftime("%d.%m.%Y") }} – {{ r.bit.strftime("%d.%m.%Y") }} arasında
+      <strong>{{ r.ozet.toplam }} giriş denemesi</strong> kaydedildi, başarısız giriş oranı
+      <strong>%{{ r.ozet.basarisiz_orani|string|replace(".", ",") }}</strong>.
+      Kurallar <strong>{{ r.ozet.anomali }} anomali</strong> tespit etti, {{ r.ozet.yuksek }} tanesi yüksek önemli.
+      {% if eb.yon == "artis" and eb.degisim is not none %}
+        Başarısız girişler dönemin ikinci yarısında ilk yarıya göre <strong>%{{ eb.degisim }} arttı</strong>.
+      {% elif eb.yon == "azalis" %}
+        Başarısız girişler dönemin ikinci yarısında ilk yarıya göre <strong>%{{ -eb.degisim }} azaldı</strong>.
+      {% elif eb.yon == "sabit" %}
+        Başarısız giriş sayısı dönem boyunca değişmedi.
+      {% endif %}
+    </p>
+  </div>
+
+  <div class="olcumler bes">
+    <div class="olcum"><div class="ad">Giriş denemesi</div><div class="sayi">{{ r.ozet.toplam }}</div></div>
+    <div class="olcum"><div class="ad">Başarısız oranı</div><div class="sayi">%{{ r.ozet.basarisiz_orani|string|replace(".", ",") }}</div></div>
+    <div class="olcum"><div class="ad">Farklı IP adresi</div><div class="sayi">{{ r.ozet.farkli_ip }}</div></div>
+    <div class="olcum kehribar"><div class="ad">Anomali</div><div class="sayi">{{ r.ozet.anomali }}</div></div>
+    <div class="olcum kirmizi"><div class="ad">Yüksek önemli</div><div class="sayi">{{ r.ozet.yuksek }}</div></div>
+  </div>
+
+  {% if r.ozet.toplam %}
+  <section>
+    <div class="panel">
+      <h2 class="bolum">Günlere göre girişler</h2>
+      <p class="aciklama-metni">Kaydı olmayan günler 0 olarak gösterilir.</p>
+      <div class="grafik-yer"><canvas id="gunlukGrafik" role="img" aria-label="Günlere göre başarılı ve başarısız giriş sayıları"></canvas></div>
+    </div>
+  </section>
+
+  <section>
+    <div class="izgara esit">
+      <div class="panel">
+        <h2 class="bolum">Günlere göre anomaliler</h2>
+        {% set ea = r.egilim_anomali %}
+        <p class="aciklama-metni">
+          {% if ea.yon == "artis" and ea.degisim is not none %}İkinci yarıda %{{ ea.degisim }} artış.
+          {% elif ea.yon == "azalis" %}İkinci yarıda %{{ -ea.degisim }} azalış.
+          {% else %}Olay zamanına göre (kanıt loglarının ilki).{% endif %}
+        </p>
+        <div class="grafik-yer kucuk"><canvas id="anomaliGrafik" role="img" aria-label="Günlere göre anomali sayıları"></canvas></div>
+      </div>
+      <div class="panel">
+        <h2 class="bolum">Kurala göre anomaliler</h2>
+        <p class="aciklama-metni">Önem derecesine göre.</p>
+        {% if r.kurallar %}
+          <div class="grafik-yer kucuk"><canvas id="kuralGrafik" role="img" aria-label="Kurala göre anomali sayıları"></canvas></div>
+        {% else %}
+          <div class="bos">Bu aralıkta anomali yok.</div>
+        {% endif %}
+      </div>
+    </div>
+  </section>
+  {% endif %}
+
+  <section class="izgara esit">
+    <div>
+      <h2 class="bolum">En çok anomaliye karışan IP adresleri</h2>
+      <p class="aciklama-metni">Engelleme listesi için ilk bakılacak yer.</p>
+      {% if r.ipler %}
+        <div class="tablo-kutu"><table class="dar">
+          <tr><th>IP adresi</th><th>Anomali</th><th>En yüksek önem</th><th>Konum</th></tr>
+          {% for i in r.ipler %}
+            <tr><td class="veri">{{ i.ip_adresi }}</td><td>{{ i.anomali }}</td>
+                <td><span class="rozet {{ i.en_yuksek }}">{{ ONEM[i.en_yuksek] }}</span></td><td>{{ i.konum }}</td></tr>
+          {% endfor %}
+        </table></div>
+      {% else %}<div class="bos">Bu aralıkta anomali yok.</div>{% endif %}
+    </div>
+    <div>
+      <h2 class="bolum">En çok hedeflenen kullanıcı adları</h2>
+      <p class="aciklama-metni">Başarısız giriş sayısına göre.</p>
+      {% if r.hedefler %}
+        <div class="tablo-kutu"><table class="dar">
+          <tr><th>Kullanıcı adı</th><th>Başarısız</th><th>Farklı IP</th></tr>
+          {% for h in r.hedefler %}
+            <tr><td class="veri">{{ h.kullanici_adi }}</td><td>{{ h.basarisiz }}</td><td>{{ h.farkli_ip }}</td></tr>
+          {% endfor %}
+        </table></div>
+      {% else %}<div class="bos">Bu aralıkta başarısız giriş yok.</div>{% endif %}
+    </div>
+  </section>
+
+  <section>
+    <h2 class="bolum">Anomali listesi</h2>
+    <p class="aciklama-metni">Önce en önemlisi. Tamamı CSV olarak indirilebilir.</p>
+    {% if r.anomaliler %}
+      <div class="tablo-kutu"><table>
+        <tr><th>Önem</th><th>Olay zamanı</th><th>Kural</th><th>IP adresi</th><th>Açıklama</th></tr>
+        {% for a in r.anomaliler[:50] %}
+          <tr><td><span class="rozet {{ a.onem }}">{{ ONEM[a.onem] }}</span></td>
+              <td class="veri">{{ a.olay_zamani.strftime("%d.%m.%Y %H:%M") }}</td>
+              <td>{{ a.kural }}</td><td class="veri">{{ a.ip_adresi }}</td><td>{{ a.aciklama or "" }}</td></tr>
+        {% endfor %}
+      </table></div>
+      {% if r.anomaliler|length > 50 %}<p class="aciklama-metni" style="margin-top:8px">İlk 50 anomali gösteriliyor; toplam {{ r.anomaliler|length }}.</p>{% endif %}
+    {% else %}
+      <div class="bos">Bu aralıkta anomali yok.</div>
+    {% endif %}
+  </section>
+
+  <p class="ayrac">Başarısız oranı = başarısız giriş / toplam giriş. Eğilim, aralığın ikinci yarısının ilk yarısıyla karşılaştırılmasıdır.
+    Anomalinin günü, kanıt olan ilk log kaydının zamanıdır. Gösterilen veriler sentetik test verisidir.</p>
+{% endblock %}
+
+{% block betik %}
+{% if r.ozet.toplam %}
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<script>
+(function () {
+  if (!window.Chart) return;   // grafik kütüphanesi yüklenemezse sayfa yine çalışır
+  var seri = {{ r.seri | tojson }};
+  var kurallar = {{ r.kurallar | tojson }};
+  var renk = { metin: "#87A3B3", cizgi: "#24404F", canli: "#3FD3C6", yuksek: "#FF5D62", orta: "#F3AA3C", dusuk: "#5FA8FF", zemin: "#132430" };
+  Chart.defaults.color = renk.metin;
+  Chart.defaults.font.family = "'IBM Plex Sans', 'Segoe UI', sans-serif";
+  Chart.defaults.borderColor = renk.cizgi;
+  var etiketler = seri.map(function (g) { var p = g.gun.split("-"); return p[2] + "." + p[1]; });
+  var cubuk = { borderRadius: 3, borderSkipped: "start", borderColor: renk.zemin, borderWidth: { top: 2 }, maxBarThickness: 28 };
+  var eksen = function (yigin) {
+    return { x: { stacked: yigin, grid: { display: false }, ticks: { maxRotation: 0, autoSkip: true } },
+             y: { stacked: yigin, beginAtZero: true, ticks: { precision: 0 }, grid: { color: "rgba(36,64,79,.6)" } } };
+  };
+
+  new Chart(document.getElementById("gunlukGrafik"), {
+    type: "bar",
+    data: { labels: etiketler, datasets: [
+      Object.assign({ label: "Başarılı", data: seri.map(function (g) { return g.basarili; }), backgroundColor: renk.canli, stack: "g" }, cubuk),
+      Object.assign({ label: "Başarısız", data: seri.map(function (g) { return g.basarisiz; }), backgroundColor: renk.yuksek, stack: "g" }, cubuk)
+    ]},
+    options: { maintainAspectRatio: false, interaction: { mode: "index", intersect: false },
+               plugins: { legend: { position: "bottom", labels: { boxWidth: 12 } } }, scales: eksen(true) }
+  });
+
+  new Chart(document.getElementById("anomaliGrafik"), {
+    type: "line",
+    data: { labels: etiketler, datasets: [{ label: "Anomali", data: seri.map(function (g) { return g.anomali; }),
+      borderColor: renk.orta, backgroundColor: renk.orta, borderWidth: 2, pointRadius: 3, pointHoverRadius: 5, tension: 0 }] },
+    options: { maintainAspectRatio: false, interaction: { mode: "index", intersect: false },
+               plugins: { legend: { display: false } }, scales: eksen(false) }
+  });
+
+  var kuralTuval = document.getElementById("kuralGrafik");
+  if (kuralTuval) {
+    var onem = [["yuksek", "Yüksek"], ["orta", "Orta"], ["dusuk", "Düşük"]];
+    new Chart(kuralTuval, {
+      type: "bar",
+      data: { labels: kurallar.map(function (k) { return k.kural; }),
+              datasets: onem.map(function (o) {
+                return Object.assign({ label: o[1], data: kurallar.map(function (k) { return k[o[0]]; }), backgroundColor: renk[o[0]], stack: "o" },
+                                     cubuk, { borderWidth: { right: 2 } });
+              }) },
+      options: { indexAxis: "y", maintainAspectRatio: false,
+                 plugins: { legend: { position: "bottom", labels: { boxWidth: 12 } } },
+                 scales: { x: { stacked: true, beginAtZero: true, ticks: { precision: 0 }, grid: { color: "rgba(36,64,79,.6)" } },
+                           y: { stacked: true, grid: { display: false },
+                                ticks: { callback: function (v) { var t = this.getLabelForValue(v); return t.length > 24 ? t.slice(0, 23) + "…" : t; } } } } }
+    });
+  }
+})();
+</script>
+{% endif %}
+{% endblock %}

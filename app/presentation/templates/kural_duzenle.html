@@ -1,0 +1,16 @@
+{% extends "uygulama_duzen.html" %}
+{% block baslik %}Kuralı düzenle{% endblock %}
+{% block icerik %}
+  <p><a href="{{ url_for('yonetim') }}">← Kurallara dön</a></p>
+  <div class="baslik">
+    <h1>Kuralı düzenle</h1>
+    <p>Eşik veya süre değişince mevcut loglara uygulamak için kural sayfasında “Kuralları şimdi çalıştır”a basın.</p>
+  </div>
+  <section>
+    <div class="panel" style="max-width:560px">
+      <form class="form" method="post" style="max-width:none">
+        {% include "_kural_formu.html" %}
+      </form>
+    </div>
+  </section>
+{% endblock %}

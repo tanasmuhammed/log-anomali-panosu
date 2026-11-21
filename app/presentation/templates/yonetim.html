@@ -1,25 +1,62 @@
 {% extends "uygulama_duzen.html" %}
 {% block baslik %}Kurallar{% endblock %}
 {% block icerik %}
-  <div class="baslik">
-    <h1>Kural yönetimi</h1>
-    <p>Şirketinize özel anomali kuralları. Bu sayfayı yalnızca yönetici görebilir. Kuralları düzenleme Hafta 11'de eklenecek.</p>
+  <div class="serit">
+    <div class="baslik">
+      <h1>Kural yönetimi</h1>
+      <p>Şirketinize özel anomali kuralları. Bu sayfayı yalnızca yönetici görebilir.</p>
+    </div>
+    <form method="post" action="{{ url_for('tarama') }}">
+      <input type="hidden" name="csrf" value="{{ csrf_token() }}">
+      <input type="hidden" name="geri" value="yonetim">
+      <button class="btn ikincil" type="submit">Kuralları şimdi çalıştır</button>
+    </form>
   </div>
-  <section>
-    {% if kurallar %}
-      <div class="kurallar">
-        {% for k in kurallar %}
-          <div class="kural">
-            <span class="aktiflik {% if not k.aktif %}pasif{% endif %}">{{ "Aktif" if k.aktif else "Pasif" }}</span>
-            <h3>{{ k.ad }}</h3>
-            <div class="deger">
-              {% if k.esik %}{{ k.pencere_dk }} dakika içinde en az {{ k.esik }} olay{% else %}Mesai dışında (08:00-18:00 dışı) yapılan başarılı girişler{% endif %}
-            </div>
-          </div>
-        {% endfor %}
+
+  <div class="izgara">
+    <section style="margin-top:0" aria-labelledby="liste-b">
+      <h2 class="bolum" id="liste-b">Kurallar</h2>
+      <p class="aciklama-metni">Pasif kurallar taramada çalışmaz. Anomali bulmuş bir kural silinemez, pasif yapılabilir.</p>
+      {% if kurallar %}
+        <div class="kural-listesi">
+          {% for k in kurallar %}
+            <article class="kural-satiri {% if not k.aktif %}pasif{% endif %}">
+              <div class="kural-bilgi">
+                <h3>{{ k.ad }} <span class="aktiflik {% if not k.aktif %}pasif{% endif %}">{{ "Aktif" if k.aktif else "Pasif" }}</span></h3>
+                <p>{{ k.cumle }}</p>
+                <small>{{ k.tur_adi }} · bugüne kadar {{ k.anomali_sayisi }} anomali</small>
+              </div>
+              <div class="kural-islem">
+                <a class="btn ikincil kucuk" href="{{ url_for('kural_duzenle', kural_id=k.id) }}">Düzenle</a>
+                <form method="post" action="{{ url_for('kural_durum', kural_id=k.id) }}">
+                  <input type="hidden" name="csrf" value="{{ csrf_token() }}">
+                  <input type="hidden" name="aktif" value="{{ 0 if k.aktif else 1 }}">
+                  <button class="btn ikincil kucuk" type="submit">{{ "Pasif yap" if k.aktif else "Etkinleştir" }}</button>
+                </form>
+                {% if k.anomali_sayisi == 0 %}
+                <form method="post" action="{{ url_for('kural_sil', kural_id=k.id) }}" onsubmit="return confirm('“{{ k.ad }}” kuralı silinsin mi? Bu işlem geri alınamaz.')">
+                  <input type="hidden" name="csrf" value="{{ csrf_token() }}">
+                  <button class="btn tehlike kucuk" type="submit">Sil</button>
+                </form>
+                {% endif %}
+              </div>
+            </article>
+          {% endfor %}
+        </div>
+      {% else %}
+        <div class="bos">Bu şirkete ait kural yok. Sağdaki formla ilk kuralı ekleyin.</div>
+      {% endif %}
+    </section>
+
+    <section style="margin-top:0" aria-labelledby="yeni-b">
+      <div class="panel">
+        <h2 class="bolum" id="yeni-b">Yeni kural</h2>
+        <p class="aciklama-metni">“Kaydetmeden dene” kuralın mevcut loglarda kaç olay yakalayacağını gösterir.</p>
+        <form class="form" method="post" style="max-width:none">
+          {% include "_kural_formu.html" %}
+        </form>
       </div>
-    {% else %}
-      <div class="bos">Bu şirkete ait kural yok.</div>
-    {% endif %}
-  </section>
+    </section>
+  </div>
 {% endblock %}
+{% block betik %}{% include "_kural_betik.html" %}{% endblock %}

@@ -1,0 +1,45 @@
+{# Kural ekleme ve düzenleme sayfalarının ortak form alanları.
+   Değişkenler: form, hatalar, onizleme, turler (yeni kural) veya tur (düzenleme) #}
+{% if hatalar %}
+  <ul class="form-hatalari" role="alert">
+    {% for h in hatalar %}<li>{{ h }}</li>{% endfor %}
+  </ul>
+{% endif %}
+<input type="hidden" name="csrf" value="{{ csrf_token() }}">
+{% if turler %}
+  <label for="kural_turu" style="margin-top:0">Kural türü</label>
+  <select id="kural_turu" name="kural_turu" data-tur-secici>
+    {% for anahtar, t in turler.items() %}
+      <option value="{{ anahtar }}" data-esikli="{{ 1 if t.esikli else 0 }}" {% if form.kural_turu == anahtar %}selected{% endif %}>{{ t.ad }}</option>
+    {% endfor %}
+  </select>
+  <small class="ipucu" data-tur-aciklama>{{ turler[form.kural_turu].aciklama if form.kural_turu in turler else "" }}</small>
+{% else %}
+  <p class="aciklama-metni" style="margin:0"><strong>{{ tur.ad }}</strong>. {{ tur.aciklama }} Kural türü sonradan değiştirilemez.</p>
+{% endif %}
+
+<label for="ad">Kural adı</label>
+<input id="ad" name="ad" value="{{ form.ad }}" maxlength="100" required placeholder="Örn: VPN kaba kuvvet">
+
+<div class="iki-alan" data-esik-alanlari {% if (turler and not turler.get(form.kural_turu, {}).get('esikli', True)) or (tur and not tur.esikli) %}hidden{% endif %}>
+  <div>
+    <label for="esik">Eşik (olay sayısı)</label>
+    <input id="esik" name="esik" type="number" min="2" max="1000" value="{{ form.esik }}" inputmode="numeric">
+  </div>
+  <div>
+    <label for="pencere_dk">Süre (dakika)</label>
+    <input id="pencere_dk" name="pencere_dk" type="number" min="1" max="1440" value="{{ form.pencere_dk }}" inputmode="numeric">
+  </div>
+</div>
+
+{% if onizleme %}
+  <div class="onizleme" role="status">
+    Bu kural mevcut loglarda <strong>{{ onizleme[0] }} olay</strong> yakalardı{% if onizleme[0] %}, {{ onizleme[1] }} tanesi yüksek önemli{% endif %}.
+    {% if onizleme[0] == 0 %}Eşik çok yüksek olabilir.{% endif %}
+  </div>
+{% endif %}
+
+<div class="dugmeler" style="margin-top:20px">
+  <button class="btn" type="submit" name="islem" value="kaydet">Kaydet</button>
+  <button class="btn ikincil" type="submit" name="islem" value="dene">Kaydetmeden dene</button>
+</div>

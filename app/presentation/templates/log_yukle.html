@@ -10,6 +10,7 @@
     <div class="izgara">
       <div class="panel">
         <form class="form" method="post" enctype="multipart/form-data" style="max-width:none">
+    <input type="hidden" name="csrf" value="{{ csrf_token() }}">
           <label for="kaynak_id" style="margin-top:0">Kaynak</label>
           <select id="kaynak_id" name="kaynak_id">
             <option value="">(seçin)</option>
