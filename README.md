@@ -7,7 +7,9 @@ gösteren ve uyarı üreten çok şirketli bir web uygulamasıdır.
 > **Ders:** Bilgisayar Uygulamaları I (Proje Tabanlı Ders)
 > **Proje:** P27, Günlük (Log) Anomali İzleme Panosu
 > **Geliştirici:** Muhammed Berkin Tanas
-> **Durum:** Geliştirme aşamasında. Hafta 3-10 tamamlandı: veritabanı, giriş ve roller, log içe aktarma, anomali kuralları, IP konumu, e-posta bildirimi ve yapay zekâ özeti çalışıyor. Ara sürüm: `v0.1.0`. Sırada Hafta 11 (kural editörü).
+> **Durum:** Tamamlandı (v1.0.0). Tüm modüller çalışıyor: çok şirketli yapı, giriş ve roller, log içe aktarma, anomali kuralları, kural editörü, IP konumu, e-posta bildirimi, yapay zekâ özeti, güvenlik raporu ve dışa aktarma. 101 otomatik test.
+>
+> **Canlı demo:** https://nautical-tyke-latticed.ngrok-free.dev (geliştiricinin bilgisayarı açıkken çalışır; ilk açılışta ngrok uyarısında *Visit Site* denir) · Demo hesap: `yonetici_mavi` / `demo12345`
 
 ---
 
@@ -21,7 +23,7 @@ Gözcü bu logları toplar, belirlenen kurallara göre inceler ve şüpheli duru
 **Temel fikir:** Her şirket kendi hesabıyla giriş yapar ve **yalnızca kendi şirketinin**
 giriş loglarını görür.
 
-## 2. Planlanan özellikler
+## 2. Özellikler
 
 | Özellik | Açıklama |
 |---|---|
@@ -30,12 +32,13 @@ giriş loglarını görür.
 | Anomali kuralları | Şüpheli davranışları yakalayan kural motoru |
 | Pano | Saatlik giriş grafiği, uyarı listesi, son giriş kayıtları |
 | Uyarılar | Kurala takılan olaylar için önem dereceli uyarı |
-| Kural editörü | Şirket yöneticisinin eşik değerlerini ayarlaması |
+| Kural editörü | Yönetici kural ekler, düzenler, pasif yapar, siler; kaydetmeden önce mevcut loglarda dener |
 | Rol tabanlı erişim | Yönetici ve analist rolleri |
 | Yapay zekâ özeti | Anomalilerin kısa ve anlaşılır özeti |
 | IP konumu | Saldıran IP'nin ülke / şehir / kuruluş bilgisi (önbellekli) |
 | E-posta bildirimi | Yüksek önemli uyarıda yöneticiye e-posta (isteğe bağlı) |
-| Rapor | Dışa aktarılabilir özet rapor |
+| Güvenlik raporu | Tarih aralığı, günlük eğilim, en çok saldıran IP'ler, hedeflenen hesaplar; CSV ve yazdırılabilir/PDF çıktı |
+| Uygulama güvenliği | CSRF koruması, giriş deneme sınırı, güvenlik başlıkları, parametreli sorgular |
 
 ### Anomali kuralları (başlangıç seti)
 
@@ -94,7 +97,9 @@ taşır. Her sorguda bu alana göre filtre uygulanır.
 ├── docs/
 │   ├── er_diyagrami.svg        # ER diyagramı
 │   ├── mimari_sema.svg         # Mimari şema
-│   └── pano_demo.html          # İlk tasarım prototipi (sentetik veri)
+│   ├── pano_demo.html          # İlk tasarım prototipi (sentetik veri)
+│   ├── Teknik_Dokumantasyon.docx # Final teknik dokümantasyonu
+│   └── Savunma_Hazirligi.docx  # Demo senaryosu ve olası sorular
 ├── raporlar/
 │   └── Hafta-N/                # Haftalık ilerleme raporu ve AI kullanım günlüğü (Word)
 ├── sample_logs/                # Sentetik örnek log dosyaları
@@ -104,6 +109,8 @@ taşır. Her sorguda bu alana göre filtre uygulanır.
 │   ├── 03_ip_konum.sql         # Migration: IP konum önbelleği (Hafta 9)
 │   └── 04_ai_ozet.sql          # Migration: özet kaynağı kolonu (Hafta 10)
 ├── tests/                      # pytest testleri
+├── canli_link_sabit.bat        # Sabit canlı link (ngrok)
+├── otomatik_baslat.bat         # Linki bilgisayar açılışında başlatır
 ├── .env.example                # Ortam değişkenleri şablonu
 ├── .gitignore
 ├── requirements.txt
@@ -187,19 +194,26 @@ python -m app.presentation.web
 python -m pytest tests -v
 ```
 
-**8. Geçici canlı link (isteğe bağlı)**
+**8. Canlı link (isteğe bağlı)**
 
-Uygulama çalışırken ikinci bir terminalde:
-```bash
-cloudflared tunnel --url http://127.0.0.1:5000
-```
-Verilen `trycloudflare.com` adresi terminal kapanana kadar çalışır.
-Link açıkken `.env` içinde `FLASK_DEBUG=0` olmalıdır.
+`canli_link_sabit.bat` dosyasına çift tıklayın. İlk seferde ngrok'u indirir ve
+ngrok anahtarınızı (authtoken) bir kez sorar; sonra siteyi ve tüneli başlatır.
+Adres sabittir. Bilgisayar her açıldığında otomatik başlaması için
+`otomatik_baslat.bat` bir kez çalıştırılır. Betik debug modunu her zaman kapatır.
+Başka bir ngrok hesabı kullanılacaksa betikteki `ADRES` satırı o hesabın alan adıyla değiştirilir.
+
+**9. Kullanım**
+
+- **Pano:** tehdit seviyesi, uyarılar (açılınca konum ve özet), grafikler, son girişler.
+- **Log yükle:** `.log`/`.txt`, en fazla 2 MB. Örnekler `sample_logs` klasöründe.
+- **Kurallar** (yalnızca yönetici): ekle, düzenle, pasif yap, sil; “Kaydetmeden dene”.
+- **Rapor:** tarih aralığı seçin; CSV indirin veya “Yazdır / PDF kaydet”.
 
 ## 8. Arayüz
 
-Hafta 8'de arayüz koyu bir güvenlik paneli tarzında yenilendi: tehdit seviyesi
-şeridi, ölçümler, açılır uyarı listesi (konum ve özetle), Chart.js grafikleri.
+Arayüz koyu bir güvenlik paneli tarzındadır: tehdit seviyesi şeridi, ölçümler,
+açılır uyarı listesi (konum ve özetle), Chart.js grafikleri, kural editörü ve
+yazdırılabilir güvenlik raporu. Telefon ekranına uyumludur.
 `docs/pano_demo.html` Hafta 3'teki ilk tasarım prototipidir (koda gömülü sentetik veri).
 
 ## 9. Geliştirme planı
@@ -214,11 +228,11 @@ Hafta 8'de arayüz koyu bir güvenlik paneli tarzında yenilendi: tehdit seviyes
 | 8 | Vize: ara sürüm, uçtan uca test, arayüz yenileme | Tamamlandı |
 | 9 | IP konumu ve e-posta bildirimi | Tamamlandı |
 | 10 | Yapay zekâ özeti (maskeleme, doğrulama, yedek özet) | Tamamlandı |
-| 11 | Kural editörü | Sırada |
-| 12 | Pano ve rapor | Planlandı |
-| 13 | Test ve hata ayıklama | Planlandı |
-| 14 | Dokümantasyon ve dağıtım hazırlığı | Planlandı |
-| 15 | Final entegrasyon ve sunum | Planlandı |
+| 11 | Kural editörü (doğrulama, kaydetmeden dene) | Tamamlandı |
+| 12 | Güvenlik raporu ve dışa aktarma (CSV, PDF) | Tamamlandı |
+| 13 | Test ve hata ayıklama (101 test, güvenlik iyileştirmeleri) | Tamamlandı |
+| 14 | Dokümantasyon, arayüz iyileştirme, sabit canlı link | Tamamlandı |
+| 15 | Final entegrasyon ve savunma hazırlığı (v1.0.0) | Tamamlandı |
 
 ## 10. Güvenlik ve veri gizliliği
 
@@ -226,6 +240,9 @@ Hafta 8'de arayüz koyu bir güvenlik paneli tarzında yenilendi: tehdit seviyes
 - Parolalar düz metin saklanmaz, bcrypt ile tuzlanıp hash'lenir.
 - Gizli bilgiler (`.env`, API anahtarları) depoya yüklenmez.
 - Şirketler arası veri izolasyonu her sorguda `sirket_id` filtresiyle sağlanır.
+- Tüm formlarda CSRF anahtarı; aynı kullanıcı adına 5 hatalı girişten sonra 5 dakika kilit.
+- Güvenlik başlıkları (X-Frame-Options, X-Content-Type-Options), HttpOnly ve SameSite oturum çerezi.
+- CSV dışa aktarmada formül enjeksiyonu engellenir.
 - IP konum servisine yalnızca IP adresi gider.
 - Yapay zekâ modeline ham log gönderilmez: kullanıcı adları (`a***`) ve IP'nin son
   bölümü (`198.51.100.x`) maskelenir, şirket adı gönderilmez. Modelin cevabı
@@ -240,4 +257,4 @@ Projedeki kodlar geliştirici tarafından incelenmiş, çalıştırılmış ve a
 
 ## 12. Lisans ve kullanım
 
-Bu proje ders kapsamında eğitim amaçlı geliştirilmektedir.
+Bu proje ders kapsamında eğitim amaçlı geliştirilmiştir.
