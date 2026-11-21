@@ -39,7 +39,7 @@ SIRKETLER = [
                                 ("analist_mavi", "analist")],
         "personel": ["ayse.k", "mehmet.t", "can.y", "zeynep.a", "admin", "burak.s"],
         "kaynaklar": [("Web sunucusu", "web"), ("VPN", "vpn")],
-        "hacim": 320,
+        "hacim": 900,
     },
     {
         "ad": "Yeşil Gıda Ltd.",
@@ -47,9 +47,14 @@ SIRKETLER = [
                                 ("analist_yesil", "analist")],
         "personel": ["elif.d", "ali.s", "depo", "muhasebe", "admin"],
         "kaynaklar": [("Web sunucusu", "web"), ("Muhasebe uygulaması", "uygulama")],
-        "hacim": 180,
+        "hacim": 500,
     },
 ]
+
+# Hafta 12: rapordaki günlük eğilim (trend) grafiği anlamlı olsun diye
+# veriler son GUN_SAYISI güne yayılır ve saldırılar farklı günlerde tekrarlanır.
+GUN_SAYISI = 14
+SALDIRI_GUNLERI = {"A": [0, 2, 5, 9, 12], "B": [1, 6, 11]}
 
 KURALLAR = [
     # (ad, tür, eşik, pencere_dk)
@@ -79,13 +84,14 @@ def satir(sirket_id, kaynak_id, zaman, ip, kullanici, durum):
 
 
 def normal_loglar(sirket_id, kaynak_idleri, personel, adet, simdi):
-    """Son 24 saate yayılmış, çoğu başarılı olan olağan girişler."""
+    """Son GUN_SAYISI güne yayılmış, çoğu başarılı olan olağan girişler."""
     ip_haritasi = {kisi: f"192.0.2.{10 + i}" for i, kisi in enumerate(personel)}
     satirlar = []
     for _ in range(adet):
         saat = random.choices(range(24), weights=SAAT_AGIRLIGI)[0]
         zaman = simdi.replace(hour=saat, minute=random.randint(0, 59),
                               second=random.randint(0, 59), microsecond=0)
+        zaman -= timedelta(days=random.randrange(GUN_SAYISI))
         if zaman > simdi:
             zaman -= timedelta(days=1)
         kisi = random.choice(personel)
@@ -95,8 +101,17 @@ def normal_loglar(sirket_id, kaynak_idleri, personel, adet, simdi):
     return satirlar
 
 
-def saldiri_loglari(sirket_id, web_id, vpn_id, tip, simdi):
-    """Kuralların yakalaması gereken şüpheli kalıplar."""
+def saldiri_loglari(sirket_id, web_id, vpn_id, tip, simdi, kaydir=0):
+    """Kuralların yakalaması gereken şüpheli kalıplar.
+
+    kaydir: saldırı başka bir günde tekrarlanırken IP'nin son bölümüne eklenir.
+    Böylece her gün farklı bir saldırgan IP'si olur (kurallar her IP'yi bir kez
+    raporladığı için aynı IP tekrar kullanılsa ikinci saldırı görünmezdi)."""
+    def ip(adres):
+        parcalar = adres.split(".")
+        parcalar[3] = str(int(parcalar[3]) + kaydir)
+        return ".".join(parcalar)
+
     def an(saat, dakika):
         t = simdi.replace(hour=saat, minute=dakika, second=0, microsecond=0)
         return t - timedelta(days=1) if t > simdi else t
@@ -107,29 +122,29 @@ def saldiri_loglari(sirket_id, web_id, vpn_id, tip, simdi):
         taban = an(9, 42)
         for i in range(12):
             s.append(satir(sirket_id, vpn_id, taban - timedelta(seconds=40 * i),
-                           "203.0.113.45", "admin" if i % 2 == 0 else "root",
+                           ip("203.0.113.45"), "admin" if i % 2 == 0 else "root",
                            "basarisiz"))
         # 2) Başarısızlıktan sonra başarılı giriş
         taban = an(3, 5)
         for i in range(12):
             s.append(satir(sirket_id, vpn_id, taban + timedelta(seconds=20 * i),
-                           "198.51.100.23", "admin", "basarisiz"))
+                           ip("198.51.100.23"), "admin", "basarisiz"))
         s.append(satir(sirket_id, vpn_id, taban + timedelta(minutes=7),
-                       "198.51.100.23", "admin", "basarili"))
+                       ip("198.51.100.23"), "admin", "basarili"))
         # 3) Aynı IP'den çok sayıda farklı kullanıcı adı denemesi
         taban = an(11, 12)
         isimler = ["test", "guest", "oracle", "backup", "user", "info", "sql", "demo"]
         for i, isim in enumerate(isimler):
             s.append(satir(sirket_id, web_id, taban + timedelta(seconds=90 * i),
-                           "198.51.100.9", isim, "basarisiz"))
+                           ip("198.51.100.9"), isim, "basarisiz"))
         # 4) Mesai dışı giriş
         s.append(satir(sirket_id, vpn_id, an(2, 5),
-                       "203.0.113.77", "ayse.k", "basarili"))
+                       ip("203.0.113.77"), "ayse.k", "basarili"))
     else:
         taban = an(17, 0)
         for i in range(6):
             s.append(satir(sirket_id, web_id, taban + timedelta(seconds=50 * i),
-                           "198.51.100.60", "depo", "basarisiz"))
+                           ip("198.51.100.60"), "depo", "basarisiz"))
         s.append(satir(sirket_id, web_id, an(6, 30),
                        "192.0.2.77", "elif.d", "basarili"))
     return s
@@ -176,8 +191,9 @@ def main():
 
             loglar = normal_loglar(sirket_id, kaynak_idleri,
                                    sirket["personel"], sirket["hacim"], simdi)
-            loglar += saldiri_loglari(sirket_id, kaynak_idleri[0],
-                                      kaynak_idleri[-1], tip, simdi)
+            for gun in SALDIRI_GUNLERI[tip]:
+                loglar += saldiri_loglari(sirket_id, kaynak_idleri[0], kaynak_idleri[-1],
+                                          tip, simdi - timedelta(days=gun), kaydir=gun)
             cur.executemany(
                 "INSERT INTO log_kaydi "
                 "(sirket_id, kaynak_id, zaman, ip_adresi, kullanici_adi, durum, ham_metin) "
